@@ -1,31 +1,27 @@
 use core::panic;
-use std::collections::HashMap;
+use std::{collections::HashMap, process::exit};
 
 use clap::Parser;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
-struct DevShell {
-    name: Option<String>,
-    r#type: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct Package {
-    name: Option<String>,
-    description: Option<String>,
-    r#type: Option<String>,
-}
+struct Output {}
 
 #[derive(Debug, Deserialize)]
 struct FlakeOutputs {
     #[serde(rename = "devShells")]
-    dev_shells: HashMap<String, HashMap<String, DevShell>>,
-    packages: HashMap<String, HashMap<String, Package>>,
+    dev_shells: HashMap<String, HashMap<String, Output>>,
+    packages: HashMap<String, HashMap<String, Output>>,
 }
 
 #[derive(Debug, Parser)]
-struct Cli {}
+struct Cli {
+    #[arg(short = 'd', long, default_value_t = false)]
+    dev_shells: bool,
+
+    #[arg(short = 'p', long, default_value_t = false)]
+    packages: bool,
+}
 
 fn get_nix_system() -> String {
     let arch = std::env::consts::ARCH;
@@ -39,8 +35,23 @@ fn get_nix_system() -> String {
     format!("{arch}-{os}")
 }
 
+fn nix_build(output: &str) {
+    std::process::Command::new("nix")
+        .args(["build", output])
+        .output()
+        .expect("couldn't get command output");
+}
+
 fn main() {
-    let Cli { .. } = Cli::parse();
+    let Cli {
+        dev_shells,
+        packages,
+    } = Cli::parse();
+
+    if !dev_shells && !packages {
+        println!("Nothing to build");
+        exit(1);
+    }
 
     let cmd_output = String::from_utf8(
         std::process::Command::new("nix")
@@ -56,32 +67,30 @@ fn main() {
 
     let system = get_nix_system();
 
-    for (sys, shell) in outputs.dev_shells {
-        for (name, _) in shell {
-            if sys == system {
-                let output = format!(".#devShells.{system}.{name}");
-                println!("Building {output}");
-                std::process::Command::new("nix")
-                    .args(["build", &output])
-                    .output()
-                    .expect("couldn't get command output")
-                    .stdout;
-                println!("Successfully built {output}");
+    if dev_shells {
+        println!("Building dev shell outputs\n");
+        for (sys, shell) in outputs.dev_shells {
+            for (name, _) in shell {
+                if sys == system {
+                    let output = format!(".#devShells.{system}.{name}");
+                    println!("Building dev shell {name}");
+                    nix_build(&output);
+                    println!("Successfully built dev shell {name}");
+                }
             }
         }
     }
 
-    for (sys, pkg) in outputs.packages {
-        for (name, _) in pkg {
-            if sys == system {
-                let output = format!(".#packages.{system}.{name}");
-                println!("Building {output}");
-                std::process::Command::new("nix")
-                    .args(["build", &output])
-                    .output()
-                    .expect("couldn't get command output")
-                    .stdout;
-                println!("Successfully built {output}");
+    if packages {
+        println!("Building package outputs\n");
+        for (sys, pkg) in outputs.packages {
+            for (name, _) in pkg {
+                if sys == system {
+                    let output = format!(".#packages.{system}.{name}");
+                    println!("Building package {name}");
+                    nix_build(&output);
+                    println!("Successfully built package {name}");
+                }
             }
         }
     }
