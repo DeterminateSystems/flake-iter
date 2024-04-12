@@ -21,6 +21,9 @@ struct Cli {
 
     #[arg(short = 'p', long, default_value_t = false)]
     packages: bool,
+
+    #[arg(short = 'b', long, default_value_t = false)]
+    build: bool,
 }
 
 fn get_nix_system() -> String {
@@ -46,9 +49,10 @@ fn main() {
     let Cli {
         dev_shells,
         packages,
+        build,
     } = Cli::parse();
 
-    if !dev_shells && !packages {
+    if !build || (!dev_shells && !packages) {
         println!("Nothing to build");
         exit(1);
     }
@@ -67,7 +71,7 @@ fn main() {
 
     let system = get_nix_system();
 
-    if dev_shells {
+    if dev_shells && build {
         println!("Building dev shell outputs\n");
         for (sys, shell) in outputs.dev_shells {
             for (name, _) in shell {
@@ -81,7 +85,7 @@ fn main() {
         }
     }
 
-    if packages {
+    if packages && build {
         println!("Building package outputs\n");
         for (sys, pkg) in outputs.packages {
             for (name, _) in pkg {

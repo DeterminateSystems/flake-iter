@@ -22,6 +22,7 @@
       forEachSupportedSystem = f: nixpkgs.lib.genAttrs supportedSystems (system: f {
         pkgs = import nixpkgs { inherit overlays system; };
       });
+      meta = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).package;
     in
     {
       inherit (flake-schemas) schemas;
@@ -54,7 +55,19 @@
 
       # These outputs are solely for local testing
       packages = forEachSupportedSystem ({ pkgs }: {
-        inherit (pkgs) jq nodejs coreutils bat just;
+        default =
+          let
+            rustPlatform = pkgs.makeRustPlatform {
+              cargo = pkgs.rustToolchain;
+              rustc = pkgs.rustToolchain;
+            };
+          in
+          rustPlatform.buildRustPackage {
+            pname = meta.name;
+            inherit (meta) version;
+            src = ./.;
+            cargoLock.lockFile = ./Cargo.lock;
+          };
       });
     };
 }
