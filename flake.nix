@@ -32,7 +32,7 @@
         };
       };
 
-      devShells = forEachSupportedSystem ({ pkgs }: {
+      devShells = forEachSupportedSystem ({ pkgs }: rec {
         default = pkgs.mkShell {
           packages = with pkgs; [
             rustToolchain
@@ -45,11 +45,16 @@
             RUST_SRC_PATH = "${pkgs.rustToolchain}/lib/rustlib/src/rust/library";
           };
         };
+
+        a = default;
+        b = default;
+        c = default;
+        d = default;
       });
 
       # These outputs are solely for local testing
       packages = forEachSupportedSystem ({ pkgs }: {
-        inherit (pkgs) jq;
+        inherit (pkgs) jq nodejs coreutils bat just;
       });
     };
 }
