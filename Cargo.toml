@@ -1,0 +1,13 @@
+[package]
+name = "flake-iter"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0.197", default-features = false, features = [
+    "derive",
+    "std",
+] }
+serde_json = { version = "1.0.115", default-features = false, features = [
+    "std",
+] }
