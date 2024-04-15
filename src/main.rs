@@ -1,5 +1,5 @@
 use core::panic;
-use std::{collections::HashMap, path::PathBuf, process::exit};
+use std::{collections::HashMap, process::exit};
 
 use clap::Parser;
 use serde::Deserialize;
@@ -26,7 +26,7 @@ struct Cli {
     build: bool,
 
     #[arg(default_value = ".")]
-    flake_path: PathBuf,
+    flake_ref: String,
 }
 
 fn get_nix_system() -> String {
@@ -35,7 +35,7 @@ fn get_nix_system() -> String {
         "macos" => "darwin",
         "linux" => "linux",
         os => {
-            panic!("os type {} not recognized", os);
+            panic!("os type {os} not recognized");
         }
     };
     format!("{arch}-{os}")
@@ -53,7 +53,7 @@ fn main() {
         dev_shells,
         packages,
         build,
-        flake_path,
+        flake_ref,
     } = Cli::parse();
 
     if !build || (!dev_shells && !packages) {
@@ -61,11 +61,11 @@ fn main() {
         exit(1);
     }
 
-    let flake_path = flake_path.as_os_str().to_string_lossy();
+    println!("working with flake {flake_ref}");
 
     let cmd_output = String::from_utf8(
         std::process::Command::new("nix")
-            .args(["flake", "show", "--json", &flake_path])
+            .args(["flake", "show", "--json", &flake_ref])
             .output()
             .expect("couldn't get command output")
             .stdout,
