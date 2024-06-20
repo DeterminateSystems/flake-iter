@@ -13,13 +13,17 @@ use flake_iter::{
 };
 use indicatif::ProgressBar;
 use serde_json::Value;
-use tracing::{debug, info};
+use tracing::{debug, info, Level};
 use tracing_subscriber::EnvFilter;
 
 fn main() -> Result<(), FlakeIterError> {
     tracing_subscriber::fmt()
         .with_ansi(true)
-        .with_env_filter(EnvFilter::from_default_env())
+        .with_env_filter(
+            EnvFilter::builder()
+                .with_default_directive(Level::INFO.into())
+                .from_env_lossy(),
+        )
         .init();
 
     let Cli { directory, verbose } = Cli::parse();
