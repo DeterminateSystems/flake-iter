@@ -1,7 +1,6 @@
 use core::panic;
 use std::{
     collections::HashMap,
-    io::Write,
     path::PathBuf,
     process::{Command, Output},
 };
@@ -9,8 +8,6 @@ use std::{
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-
-const FLAKE_URL_PLACEHOLDER_UUID: &str = "c9026fc0-ced9-48e0-aa3c-fc86c4c86df1";
 
 /// A tool for building all the derivations in a flake's output.
 #[derive(Parser)]
@@ -121,27 +118,20 @@ fn get_output_json(dir: PathBuf) -> Result<SchemaOutput, FlakeIterError> {
 
     println!("flake locked URL: {flake_locked_url}");
 
-    let tempdir = tempfile::Builder::new()
-        .prefix("flakehub_push_outputs")
-        .tempdir()?;
-
-    println!("temp directory: {tempdir:?}");
-
-    let flake_contents =
-        include_str!("./mixed-flake.nix").replace(FLAKE_URL_PLACEHOLDER_UUID, flake_locked_url);
-
-    let flake_path = tempdir.path().join("flake.nix");
-    println!("flake output path: {flake_path:?}");
-
-    let mut flake = std::fs::File::create(flake_path)?;
-    flake.write_all(flake_contents.as_bytes())?;
-
-    println!("temporary flake.nix created");
-
-    let drv = format!("{}#contents", tempdir.path().display());
+    let drv = format!("git+https://gist.github.com/bae261c8363414017fa4bdf8134ee53e.git#contents");
     println!("derivation: {drv}");
 
-    let nix_eval_output = nix_command(&["eval", "--json", "--no-write-lock-file", &drv])?;
+    let nix_eval_output = Command::new("nix")
+        .args([
+            "eval",
+            "--json",
+            "--no-write-lock-file",
+            "--override-input",
+            "flake",
+            flake_locked_url,
+            &drv,
+        ])
+        .output()?;
 
     let nix_eval_stdout = nix_eval_output.stdout;
 
@@ -159,8 +149,6 @@ fn get_output_json(dir: PathBuf) -> Result<SchemaOutput, FlakeIterError> {
     }
 
     let schema_output_json: SchemaOutput = serde_json::from_slice(&nix_eval_stdout)?;
-
-    std::fs::remove_dir_all(tempdir)?;
 
     Ok(schema_output_json)
 }
