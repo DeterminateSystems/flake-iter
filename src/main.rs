@@ -2,6 +2,7 @@ use std::{
     collections::HashSet,
     path::PathBuf,
     process::{Command, Output},
+    time::Duration,
 };
 
 use clap::Parser;
@@ -9,6 +10,7 @@ use flake_iter::{
     flake::{Buildable, InventoryItem, SchemaOutput},
     get_nix_system, Cli, FlakeIterError,
 };
+use indicatif::ProgressBar;
 use serde_json::Value;
 use tracing::{debug, info};
 use tracing_subscriber::EnvFilter;
@@ -26,19 +28,24 @@ fn main() -> Result<(), FlakeIterError> {
         "Building all derivations in the specified flake"
     );
 
+    let current_system = get_nix_system();
     let flake_path = directory.join("flake.nix");
     debug!(flake = ?flake_path, "Searching for derivations in flake outputs");
 
+    let bar = ProgressBar::new_spinner();
+    bar.enable_steady_tick(Duration::from_millis(100));
+
+    bar.set_message("Parsing flake output JSON");
     let outputs: SchemaOutput = get_output_json(directory)?;
+    bar.set_message("Finished parsing flake output JSON");
 
-    debug!("Flake outputs successfully parsed");
-
-    let current_system = get_nix_system();
+    bar.set_message("Assembling a list of derivations");
     let mut derivations: HashSet<PathBuf> = HashSet::new();
-
     for item in outputs.inventory.values() {
         handle_item(&mut derivations, &item, &current_system);
     }
+    bar.set_message("Finished assembling a list of derivations");
+    bar.finish();
 
     debug!(
         num = derivations.len(),
@@ -47,7 +54,7 @@ fn main() -> Result<(), FlakeIterError> {
     );
 
     for drv in derivations {
-        let drv = format!("{drv:?}^*");
+        let drv = format!("{}^*", drv.display().to_string());
         debug!(drv, "Building derivation");
         nix_command(&["build", &drv])?;
     }

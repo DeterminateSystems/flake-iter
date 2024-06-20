@@ -14,6 +14,7 @@ clap = { version = "4.5.7", default-features = false, features = [
   "suggestions",
   "usage",
 ] }
+indicatif = { version = "0.17.8", default-features = false }
 serde = { version = "1.0.197", default-features = false, features = [
   "derive",
   "std",
