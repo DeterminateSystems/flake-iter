@@ -1,5 +1,10 @@
 use core::panic;
-use std::{collections::HashMap, io::Write, path::PathBuf, process::Command};
+use std::{
+    collections::HashMap,
+    io::Write,
+    path::PathBuf,
+    process::{Command, Output},
+};
 
 use clap::Parser;
 use serde::{Deserialize, Serialize};
@@ -90,22 +95,20 @@ fn handle_item(name: &str, item: &InventoryItem, current_system: &str) {
         }
         InventoryItem::Parent(parent) => {
             for (name, item) in &parent.children {
-                handle_item(&name, &item, &current_system);
+                handle_item(name, item, current_system);
             }
         }
     }
 }
 
 fn get_output_json(dir: PathBuf) -> Result<SchemaOutput, FlakeIterError> {
-    let metadata_json_output = Command::new("nix")
-        .args([
-            "flake",
-            "metadata",
-            "--json",
-            "--no-write-lock-file",
-            &dir.as_path().display().to_string(),
-        ])
-        .output()?;
+    let metadata_json_output = nix_command(&[
+        "flake",
+        "metadata",
+        "--json",
+        "--no-write-lock-file",
+        &dir.as_path().display().to_string(),
+    ])?;
     let metadata_json: Value = serde_json::from_slice(&metadata_json_output.stdout)?;
 
     let flake_locked_url =
@@ -125,7 +128,7 @@ fn get_output_json(dir: PathBuf) -> Result<SchemaOutput, FlakeIterError> {
     println!("temp directory: {tempdir:?}");
 
     let flake_contents =
-        include_str!("./mixed-flake.nix").replace(FLAKE_URL_PLACEHOLDER_UUID, &flake_locked_url);
+        include_str!("./mixed-flake.nix").replace(FLAKE_URL_PLACEHOLDER_UUID, flake_locked_url);
 
     let flake_path = tempdir.path().join("flake.nix");
     println!("flake output path: {flake_path:?}");
@@ -138,9 +141,7 @@ fn get_output_json(dir: PathBuf) -> Result<SchemaOutput, FlakeIterError> {
     let drv = format!("{}#contents", tempdir.path().display());
     println!("derivation: {drv}");
 
-    let nix_eval_output = Command::new("nix")
-        .args(["eval", "--json", "--no-write-lock-file", &drv])
-        .output()?;
+    let nix_eval_output = nix_command(&["eval", "--json", "--no-write-lock-file", &drv])?;
 
     let nix_eval_stdout = nix_eval_output.stdout;
 
@@ -162,4 +163,8 @@ fn get_output_json(dir: PathBuf) -> Result<SchemaOutput, FlakeIterError> {
     std::fs::remove_dir_all(tempdir)?;
 
     Ok(schema_output_json)
+}
+
+fn nix_command(args: &[&str]) -> Result<Output, FlakeIterError> {
+    Ok(Command::new("nix").args(args).output()?)
 }
