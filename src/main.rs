@@ -1,105 +1,172 @@
-use core::panic;
-use std::collections::HashMap;
+use std::{
+    collections::HashSet,
+    io::{BufRead, BufReader},
+    path::PathBuf,
+    process::{Command, Output, Stdio},
+    time::Duration,
+};
 
-use serde::Deserialize;
+use clap::Parser;
+use flake_iter::{
+    flake::{Buildable, InventoryItem, Parent, SchemaOutput},
+    get_nix_system, Cli, FlakeIterError,
+};
+use indicatif::ProgressBar;
 use serde_json::Value;
+use tracing::{debug, info};
+use tracing_subscriber::EnvFilter;
 
-#[derive(Debug, Deserialize)]
-struct FlakeOutputs {
-    #[serde(rename = "devShells")]
-    dev_shells: Option<HashMap<String, HashMap<String, Value>>>,
-    #[serde(rename = "dockerImages")]
-    docker_images: Option<HashMap<String, HashMap<String, Value>>>,
-    packages: Option<HashMap<String, HashMap<String, Value>>>,
-}
+fn main() -> Result<(), FlakeIterError> {
+    tracing_subscriber::fmt()
+        .with_ansi(true)
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
 
-fn get_nix_system() -> String {
-    let arch = std::env::consts::ARCH;
-    let os = match std::env::consts::OS {
-        "macos" => "darwin",
-        "linux" => "linux",
-        os => {
-            panic!("os type {} not recognized", os);
+    let Cli { directory, verbose } = Cli::parse();
+
+    info!(
+        dir = ?directory,
+        "Building all derivations in the specified flake"
+    );
+
+    let current_system = get_nix_system();
+    let flake_path = directory.join("flake.nix");
+    debug!(flake = ?flake_path, "Searching for derivations in flake outputs");
+
+    let bar = ProgressBar::new_spinner();
+    bar.enable_steady_tick(Duration::from_millis(100));
+
+    bar.set_message("Assembling list of derivations to build");
+    let outputs: SchemaOutput = get_output_json(directory)?;
+
+    let mut derivations: HashSet<PathBuf> = HashSet::new();
+    for item in outputs.inventory.values() {
+        iterate_through_output_graph(&mut derivations, item, &current_system);
+    }
+    bar.finish_and_clear();
+
+    debug!(
+        num = derivations.len(),
+        system = current_system,
+        "Discovered all flake derivation outputs"
+    );
+
+    info!("Building all unique derivations");
+
+    for drv in derivations {
+        let drv = format!("{}^*", drv.display());
+        debug!(drv, "Building derivation");
+        let args = &["build", &drv];
+        if verbose {
+            nix_command_pipe(args)?;
+        } else {
+            nix_command(args)?;
         }
-    };
-    format!("{arch}-{os}")
-}
+    }
 
-fn nix_build(output: &str) -> Result<(), FlakeIterError> {
-    std::process::Command::new("nix")
-        .args(["build", output])
-        .output()?;
+    info!("Successfully built all derivations");
+
     Ok(())
 }
 
-#[derive(Debug, thiserror::Error)]
-enum FlakeIterError {
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
-
-    #[error(transparent)]
-    Json(#[from] serde_json::Error),
-
-    #[error(transparent)]
-    Utf8(#[from] std::string::FromUtf8Error),
+fn iterate_through_output_graph(
+    derivations: &mut HashSet<PathBuf>,
+    item: &InventoryItem,
+    current_system: &str,
+) {
+    match item {
+        InventoryItem::Buildable(Buildable {
+            derivation,
+            for_systems,
+        }) => {
+            if let Some(for_systems) = for_systems {
+                for system in for_systems {
+                    if system == current_system {
+                        if let Some(derivation) = derivation {
+                            if derivations.insert(derivation.to_path_buf()) {
+                                info!(drv = ?derivation, "Adding non-repeated derivation");
+                            } else {
+                                debug!(drv = ?derivation, "Skipping repeat derivation");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        InventoryItem::Parent(Parent { children }) => {
+            for item in children.values() {
+                iterate_through_output_graph(derivations, item, current_system);
+            }
+        }
+    }
 }
 
-fn main() -> Result<(), FlakeIterError> {
-    let flake_show_json = String::from_utf8(
-        std::process::Command::new("nix")
-            .args(["flake", "show", "--json"])
-            .output()?
-            .stdout,
-    )?;
-    let outputs: FlakeOutputs = serde_json::from_str(&flake_show_json)?;
-    let system = get_nix_system();
+fn get_output_json(dir: PathBuf) -> Result<SchemaOutput, FlakeIterError> {
+    let metadata_json_output = nix_command(&[
+        "flake",
+        "metadata",
+        "--json",
+        "--no-write-lock-file",
+        &dir.as_path().display().to_string(),
+    ])?;
+    let metadata_json: Value = serde_json::from_slice(&metadata_json_output.stdout)?;
 
-    // Package outputs
-    if let Some(packages) = outputs.packages {
-        println!("Building package outputs");
-        for (sys, pkg) in packages {
-            for (name, _) in pkg {
-                if sys == system {
-                    let output = format!(".#packages.{system}.{name}");
-                    println!("Building package output {name}");
-                    nix_build(&output)?;
-                    println!("Successfully built package {name}");
-                }
-            }
-        }
-        println!("Finished building package outputs");
+    let flake_locked_url =
+        metadata_json
+            .get("url")
+            .and_then(Value::as_str)
+            .ok_or(FlakeIterError::Misc(String::from(
+                "url field missing from flake metadata JSON",
+            )))?;
+
+    let drv =
+        String::from("git+https://gist.github.com/bae261c8363414017fa4bdf8134ee53e.git#contents");
+
+    let nix_eval_output = Command::new("nix")
+        .args([
+            "eval",
+            "--json",
+            "--no-write-lock-file",
+            "--override-input",
+            "flake",
+            flake_locked_url,
+            &drv,
+        ])
+        .output()?;
+
+    let nix_eval_stdout = nix_eval_output.clone().stdout;
+
+    if !nix_eval_output.status.success() {
+        return Err(FlakeIterError::Misc(format!(
+            "Failed to get flake outputs from tarball {}: {}",
+            flake_locked_url,
+            String::from_utf8(nix_eval_output.clone().stderr)?
+        )));
     }
 
-    // Dev shell outputs
-    if let Some(dev_shells) = outputs.dev_shells {
-        println!("Building dev shell outputs");
-        for (sys, shell) in dev_shells {
-            for (name, _) in shell {
-                if sys == system {
-                    let output = format!(".#devShells.{system}.{name}");
-                    println!("Building dev shell {name}");
-                    nix_build(&output)?;
-                    println!("Successfully built dev shell {name}");
-                }
-            }
-        }
-        println!("Finished building dev shell outputs");
-    }
+    let schema_output_json: SchemaOutput = serde_json::from_slice(&nix_eval_stdout)?;
 
-    // Docker image outputs
-    if let Some(docker_images) = outputs.docker_images {
-        println!("Building Docker image outputs");
-        for (sys, docker_image) in docker_images {
-            for (name, _) in docker_image {
-                if sys == system {
-                    let output = format!(".#devShells.{system}.{name}");
-                    println!("Building Docker image {name}");
-                    nix_build(&output)?;
-                    println!("Successfully built Docker image {name}");
-                }
+    Ok(schema_output_json)
+}
+
+fn nix_command(args: &[&str]) -> Result<Output, FlakeIterError> {
+    Ok(Command::new("nix").args(args).output()?)
+}
+
+fn nix_command_pipe(args: &[&str]) -> Result<(), FlakeIterError> {
+    let mut cmd = Command::new("nix")
+        .args(args)
+        .stdout(Stdio::piped())
+        .spawn()?;
+
+    if let Some(stdout) = cmd.stdout.take() {
+        let reader = BufReader::new(stdout);
+        for line in reader.lines() {
+            match line {
+                Ok(log) => println!("{}", log),
+                Err(e) => eprintln!("Error reading line: {}", e),
             }
         }
-        println!("Finished building Docker image outputs");
     }
 
     Ok(())

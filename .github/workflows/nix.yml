@@ -1,0 +1,28 @@
+name: Nix checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  flake-check:
+    runs-on: UbuntuLatest32Cores128G
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: DeterminateSystems/flake-checker-action@main
+        with:
+          fail-mode: true
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Nix formatting
+        run: git ls-files '*.nix' | nix develop --command xargs nixpkgs-fmt --check
+
+      - name: Nix Flake Check
+        run: nix flake check --print-build-logs --all-systems
+
+      - name: Build and cache everything
+        run: |
+          nix develop --command cargo run

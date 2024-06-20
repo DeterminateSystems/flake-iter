@@ -3,3 +3,5 @@
 
 # Nix artifacts
 result*
+
+outputs.json
