@@ -17,16 +17,17 @@ use tracing::{debug, info, Level};
 use tracing_subscriber::EnvFilter;
 
 fn main() -> Result<(), FlakeIterError> {
+    let Cli { directory, verbose } = Cli::parse();
+    let default_log_level = if verbose { Level::DEBUG } else { Level::INFO };
+
     tracing_subscriber::fmt()
         .with_ansi(true)
         .with_env_filter(
             EnvFilter::builder()
-                .with_default_directive(Level::INFO.into())
+                .with_default_directive(default_log_level.into())
                 .from_env_lossy(),
         )
         .init();
-
-    let Cli { directory, verbose } = Cli::parse();
 
     info!(
         dir = ?directory,
