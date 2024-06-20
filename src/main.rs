@@ -1,7 +1,8 @@
 use std::{
     collections::HashSet,
+    io::{BufRead, BufReader},
     path::PathBuf,
-    process::{Command, Output},
+    process::{Command, Output, Stdio},
     time::Duration,
 };
 
@@ -21,7 +22,7 @@ fn main() -> Result<(), FlakeIterError> {
         .with_env_filter(EnvFilter::from_default_env())
         .init();
 
-    let Cli { directory } = Cli::parse();
+    let Cli { directory, verbose } = Cli::parse();
 
     info!(
         dir = ?directory,
@@ -55,7 +56,12 @@ fn main() -> Result<(), FlakeIterError> {
     for drv in derivations {
         let drv = format!("{}^*", drv.display());
         debug!(drv, "Building derivation");
-        nix_command(&["build", &drv])?;
+        let args = &["build", &drv];
+        if verbose {
+            nix_command_pipe(args)?;
+        } else {
+            nix_command(args)?;
+        }
     }
 
     info!("Successfully built all derivations");
@@ -145,4 +151,23 @@ fn get_output_json(dir: PathBuf) -> Result<SchemaOutput, FlakeIterError> {
 
 fn nix_command(args: &[&str]) -> Result<Output, FlakeIterError> {
     Ok(Command::new("nix").args(args).output()?)
+}
+
+fn nix_command_pipe(args: &[&str]) -> Result<(), FlakeIterError> {
+    let mut cmd = Command::new("nix")
+        .args(args)
+        .stdout(Stdio::piped())
+        .spawn()?;
+
+    if let Some(stdout) = cmd.stdout.take() {
+        let reader = BufReader::new(stdout);
+        for line in reader.lines() {
+            match line {
+                Ok(log) => println!("{}", log),
+                Err(e) => eprintln!("Error reading line: {}", e),
+            }
+        }
+    }
+
+    Ok(())
 }
