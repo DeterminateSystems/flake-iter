@@ -58,26 +58,38 @@ fn main() -> Result<(), FlakeIterError> {
     }
     bar.finish_and_clear();
 
-    debug!(
-        num = derivations.len(),
-        system = current_system,
-        "Discovered all flake derivation outputs"
-    );
+    let num = derivations.len();
 
-    info!("Building all unique derivations");
+    if num > 0 {
+        debug!(
+            num = derivations.len(),
+            system = current_system,
+            "Discovered all flake derivation outputs"
+        );
 
-    for drv in derivations {
-        let drv = format!("{}^*", drv.display());
-        debug!(drv, "Building derivation");
-        let args = &["build", &drv];
-        if verbose {
-            nix_command_pipe(args)?;
-        } else {
-            nix_command(args)?;
+        info!("Building all unique derivations");
+
+        let mut n = 1;
+        for drv in derivations {
+            let drv = format!("{}^*", drv.display());
+            if verbose {
+                debug!(drv, "Building derivation {n} of {num}");
+            } else {
+                info!("Building derivation {n} of {num}");
+            }
+            let args = &["build", &drv];
+            if verbose {
+                nix_command_pipe(args)?;
+            } else {
+                nix_command(args)?;
+            }
+            n += 1;
         }
-    }
 
-    info!("Successfully built all derivations");
+        info!("Successfully built all derivations");
+    } else {
+        info!("No derivations to build; exiting");
+    }
 
     Ok(())
 }
@@ -97,7 +109,7 @@ fn iterate_through_output_graph(
                     if system == current_system {
                         if let Some(derivation) = derivation {
                             if derivations.insert(derivation.to_path_buf()) {
-                                info!(drv = ?derivation, "Adding non-repeated derivation");
+                                debug!(drv = ?derivation, "Adding non-repeated derivation");
                             } else {
                                 debug!(drv = ?derivation, "Skipping repeat derivation");
                             }
