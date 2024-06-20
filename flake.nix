@@ -49,6 +49,7 @@
             rust-analyzer
             nixpkgs-fmt
             cargo-machete
+            iconv
           ];
 
           env = {
@@ -70,7 +71,7 @@
           inherit (meta) version;
           src = self;
           doCheck = true;
-          buildInputs = with pkgs; [ libiconv ];
+          buildInputs = with pkgs; [ iconv ];
         };
 
         a = default;
