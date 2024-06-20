@@ -77,7 +77,7 @@ fn main() -> Result<(), FlakeIterError> {
             } else {
                 info!("Building derivation {n} of {num}");
             }
-            let args = &["build", &drv];
+            let args = &["build", "-L", &drv];
             if verbose {
                 nix_command_pipe(args)?;
             } else {
