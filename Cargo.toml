@@ -22,7 +22,9 @@ serde = { version = "1.0.197", default-features = false, features = [
 serde_json = { version = "1.0.115", default-features = false, features = [
   "std",
 ] }
-tempfile = { version = "3.10.1", default-features = false }
 thiserror = { version = "1.0.61", default-features = false }
 tracing = { version = "0.1.40", default-features = false, features = ["log"] }
-tracing-subscriber = { version = "0.3.18", default-features = false, features = ["ansi", "env-filter"] }
+tracing-subscriber = { version = "0.3.18", default-features = false, features = [
+  "ansi",
+  "env-filter",
+] }
