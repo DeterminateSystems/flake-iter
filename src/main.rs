@@ -36,6 +36,14 @@ fn main() -> Result<(), FlakeIterError> {
 
     let current_system = get_nix_system();
     let flake_path = directory.join("flake.nix");
+
+    if !flake_path.exists() {
+        return Err(FlakeIterError::Misc(format!(
+            "No flake found at {}",
+            directory.display().to_string()
+        )));
+    }
+
     debug!(flake = ?flake_path, "Searching for derivations in flake outputs");
 
     let bar = ProgressBar::new_spinner();
