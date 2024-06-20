@@ -7,7 +7,7 @@ use std::{
 
 use clap::Parser;
 use flake_iter::{
-    flake::{Buildable, InventoryItem, SchemaOutput},
+    flake::{Buildable, InventoryItem, Parent, SchemaOutput},
     get_nix_system, Cli, FlakeIterError,
 };
 use indicatif::ProgressBar;
@@ -40,7 +40,7 @@ fn main() -> Result<(), FlakeIterError> {
 
     let mut derivations: HashSet<PathBuf> = HashSet::new();
     for item in outputs.inventory.values() {
-        handle_item(&mut derivations, item, &current_system);
+        iterate_through_output_graph(&mut derivations, item, &current_system);
     }
     bar.finish_and_clear();
 
@@ -63,7 +63,11 @@ fn main() -> Result<(), FlakeIterError> {
     Ok(())
 }
 
-fn handle_item(derivations: &mut HashSet<PathBuf>, item: &InventoryItem, current_system: &str) {
+fn iterate_through_output_graph(
+    derivations: &mut HashSet<PathBuf>,
+    item: &InventoryItem,
+    current_system: &str,
+) {
     match item {
         InventoryItem::Buildable(Buildable {
             derivation,
@@ -83,9 +87,9 @@ fn handle_item(derivations: &mut HashSet<PathBuf>, item: &InventoryItem, current
                 }
             }
         }
-        InventoryItem::Parent(parent) => {
-            for item in parent.children.values() {
-                handle_item(derivations, item, current_system);
+        InventoryItem::Parent(Parent { children }) => {
+            for item in children.values() {
+                iterate_through_output_graph(derivations, item, current_system);
             }
         }
     }

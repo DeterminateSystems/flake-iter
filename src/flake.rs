@@ -11,12 +11,12 @@ pub struct SchemaOutput {
 #[derive(Deserialize)]
 #[serde(untagged)]
 pub enum InventoryItem {
-    Parent(InventoryParent),
+    Parent(Parent),
     Buildable(Buildable),
 }
 
 #[derive(Deserialize)]
-pub struct InventoryParent {
+pub struct Parent {
     pub children: HashMap<String, InventoryItem>,
 }
 
