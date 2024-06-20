@@ -35,15 +35,24 @@ fn get_nix_system() -> String {
     format!("{arch}-{os}")
 }
 
-fn nix_build(output: &str) {
+fn nix_build(output: &str) -> Result<(), FlakeIterError> {
     std::process::Command::new("nix")
         .args(["build", output])
-        .output()
-        .expect("couldn't get command output");
+        .output()?;
+    Ok(())
 }
 
 #[derive(Debug, thiserror::Error)]
-enum FlakeIterError {}
+enum FlakeIterError {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
+
+    #[error(transparent)]
+    Utf8(#[from] std::string::FromUtf8Error),
+}
 
 fn main() -> Result<(), FlakeIterError> {
     let Cli {
@@ -56,17 +65,14 @@ fn main() -> Result<(), FlakeIterError> {
         return Ok(());
     }
 
-    let cmd_output = String::from_utf8(
+    let flake_show_json = String::from_utf8(
         std::process::Command::new("nix")
             .args(["flake", "show", "--json"])
-            .output()
-            .expect("couldn't get command output")
+            .output()?
             .stdout,
-    )
-    .expect("couldn't convert stdout to string");
+    )?;
 
-    let outputs: FlakeOutputs =
-        serde_json::from_str(&cmd_output).expect("couldn't deserialize string to json");
+    let outputs: FlakeOutputs = serde_json::from_str(&flake_show_json)?;
 
     let system = get_nix_system();
 
@@ -77,7 +83,7 @@ fn main() -> Result<(), FlakeIterError> {
                 if sys == system {
                     let output = format!(".#packages.{system}.{name}");
                     println!("Building package output {name}");
-                    nix_build(&output);
+                    nix_build(&output)?;
                     println!("Successfully built package {name}");
                 }
             }
@@ -92,7 +98,7 @@ fn main() -> Result<(), FlakeIterError> {
                 if sys == system {
                     let output = format!(".#devShells.{system}.{name}");
                     println!("Building dev shell {name}");
-                    nix_build(&output);
+                    nix_build(&output)?;
                     println!("Successfully built dev shell {name}");
                 }
             }
