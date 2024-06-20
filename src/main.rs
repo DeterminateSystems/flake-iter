@@ -37,7 +37,7 @@ fn main() -> Result<(), FlakeIterError> {
     let mut derivations: HashSet<PathBuf> = HashSet::new();
 
     for item in outputs.inventory.values() {
-        handle_item(&mut derivations, item, &current_system);
+        handle_item(&mut derivations, &item, &current_system);
     }
 
     debug!(
@@ -48,7 +48,7 @@ fn main() -> Result<(), FlakeIterError> {
 
     for drv in derivations {
         let drv = format!("{drv:?}^*");
-        debug!(drv = ?drv, "Building derivation");
+        debug!(drv, "Building derivation");
         nix_command(&["build", &drv])?;
     }
 
@@ -79,7 +79,7 @@ fn handle_item(derivations: &mut HashSet<PathBuf>, item: &InventoryItem, current
         }
         InventoryItem::Parent(parent) => {
             for item in parent.children.values() {
-                handle_item(derivations, item, current_system);
+                handle_item(derivations, &item, current_system);
             }
         }
     }

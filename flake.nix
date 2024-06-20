@@ -44,6 +44,7 @@
           ];
 
           env = {
+            RUST_LOG = "debug";
             RUST_SRC_PATH = "${pkgs.rustToolchain}/lib/rustlib/src/rust/library";
           };
         };
@@ -55,7 +56,7 @@
       });
 
       # These outputs are solely for local testing
-      packages = forEachSupportedSystem ({ pkgs }: {
+      packages = forEachSupportedSystem ({ pkgs }: rec {
         default =
           let
             rustPlatform = pkgs.makeRustPlatform {
@@ -69,6 +70,13 @@
             src = ./.;
             cargoLock.lockFile = ./Cargo.lock;
           };
+
+        a = default;
+        b = default;
+        c = default;
+        d = pkgs.jq;
+        e = pkgs.ponysay;
+        f = pkgs.hello;
       });
     };
 }
