@@ -2,7 +2,7 @@
   inputs.flake.url = "c9026fc0-ced9-48e0-aa3c-fc86c4c86df1";
   outputs = inputs:
     {
-      includeOutputPaths = INCLUDE_OUTPUT_PATHS;
+      includeOutputPaths = true;
 
       contents =
         let

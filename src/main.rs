@@ -69,29 +69,28 @@ enum FlakeIterError {
 fn main() -> Result<(), FlakeIterError> {
     let Cli { directory } = Cli::parse();
 
-    let outputs: SchemaOutput = get_output_json(directory)?;
     let current_system = get_nix_system();
+    let outputs: SchemaOutput = get_output_json(directory)?;
 
-    // Package outputs
     for (name, item) in outputs.inventory {
-        handle_item(&name, item, &current_system);
+        handle_item(&name, &item, &current_system);
     }
 
     Ok(())
 }
 
-fn handle_item(name: &str, item: InventoryItem, current_system: &str) {
+fn handle_item(name: &str, item: &InventoryItem, current_system: &str) {
     match item {
         InventoryItem::Buildable(buildable) => {
-            for system in buildable.for_systems {
+            for system in &buildable.for_systems {
                 if system == current_system {
                     println!("name: {name}, buildable: {:?}", buildable.derivation);
                 }
             }
         }
         InventoryItem::Parent(parent) => {
-            for (name, item) in parent.children {
-                handle_item(&name, item, &current_system);
+            for (name, item) in &parent.children {
+                handle_item(&name, &item, &current_system);
             }
         }
     }
@@ -108,6 +107,7 @@ fn get_output_json(dir: PathBuf) -> Result<SchemaOutput, FlakeIterError> {
         ])
         .output()?;
     let metadata_json: Value = serde_json::from_slice(&metadata_json_output.stdout)?;
+
     let flake_locked_url =
         metadata_json
             .get("url")
@@ -116,21 +116,38 @@ fn get_output_json(dir: PathBuf) -> Result<SchemaOutput, FlakeIterError> {
                 "url field missing from flake metadata JSON",
             )))?;
 
+    println!("flake locked URL: {flake_locked_url}");
+
     let tempdir = tempfile::Builder::new()
         .prefix("flakehub_push_outputs")
         .tempdir()?;
 
-    let flake_contents = include_str!("mixed-flake.nix")
-        .replace(FLAKE_URL_PLACEHOLDER_UUID, &flake_locked_url)
-        .replace("INCLUDE_OUTPUT_PATHS", "true");
+    println!("temp directory: {tempdir:?}");
 
-    let mut flake = std::fs::File::create(tempdir.path().join("flake.nix"))?;
+    let flake_contents =
+        include_str!("./mixed-flake.nix").replace(FLAKE_URL_PLACEHOLDER_UUID, &flake_locked_url);
+
+    let flake_path = tempdir.path().join("flake.nix");
+    println!("flake output path: {flake_path:?}");
+
+    let mut flake = std::fs::File::create(flake_path)?;
     flake.write_all(flake_contents.as_bytes())?;
 
+    println!("temporary flake.nix created");
+
     let drv = format!("{}#contents", tempdir.path().display());
+    println!("derivation: {drv}");
+
     let nix_eval_output = Command::new("nix")
         .args(["eval", "--json", "--no-write-lock-file", &drv])
         .output()?;
+
+    let nix_eval_stdout = nix_eval_output.stdout;
+
+    println!(
+        "nix eval output: {}",
+        String::from_utf8(nix_eval_stdout.clone())?
+    );
 
     if !nix_eval_output.status.success() {
         return Err(FlakeIterError::Misc(format!(
@@ -140,6 +157,6 @@ fn get_output_json(dir: PathBuf) -> Result<SchemaOutput, FlakeIterError> {
         )));
     }
 
-    let schema_output_json: SchemaOutput = serde_json::from_slice(&nix_eval_output.stdout)?;
+    let schema_output_json: SchemaOutput = serde_json::from_slice(&nix_eval_stdout)?;
     Ok(schema_output_json)
 }
