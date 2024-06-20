@@ -1,29 +1,16 @@
 use core::panic;
-use std::{collections::HashMap, process::exit};
+use std::collections::HashMap;
 
-use clap::Parser;
 use serde::Deserialize;
-
-#[derive(Debug, Deserialize)]
-struct Output {}
+use serde_json::Value;
 
 #[derive(Debug, Deserialize)]
 struct FlakeOutputs {
     #[serde(rename = "devShells")]
-    dev_shells: HashMap<String, HashMap<String, Output>>,
-    packages: HashMap<String, HashMap<String, Output>>,
-}
-
-#[derive(Debug, Parser)]
-struct Cli {
-    #[arg(short = 'd', long, default_value_t = false)]
-    dev_shells: bool,
-
-    #[arg(short = 'p', long, default_value_t = false)]
-    packages: bool,
-
-    #[arg(short = 'b', long, default_value_t = false)]
-    build: bool,
+    dev_shells: Option<HashMap<String, HashMap<String, Value>>>,
+    #[serde(rename = "dockerImages")]
+    docker_images: Option<HashMap<String, HashMap<String, Value>>>,
+    packages: Option<HashMap<String, HashMap<String, Value>>>,
 }
 
 fn get_nix_system() -> String {
@@ -38,64 +25,82 @@ fn get_nix_system() -> String {
     format!("{arch}-{os}")
 }
 
-fn nix_build(output: &str) {
+fn nix_build(output: &str) -> Result<(), FlakeIterError> {
     std::process::Command::new("nix")
         .args(["build", output])
-        .output()
-        .expect("couldn't get command output");
+        .output()?;
+    Ok(())
 }
 
-fn main() {
-    let Cli {
-        dev_shells,
-        packages,
-        build,
-    } = Cli::parse();
+#[derive(Debug, thiserror::Error)]
+enum FlakeIterError {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
 
-    if !build || (!dev_shells && !packages) {
-        println!("Nothing to build");
-        exit(1);
-    }
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
 
-    let cmd_output = String::from_utf8(
+    #[error(transparent)]
+    Utf8(#[from] std::string::FromUtf8Error),
+}
+
+fn main() -> Result<(), FlakeIterError> {
+    let flake_show_json = String::from_utf8(
         std::process::Command::new("nix")
             .args(["flake", "show", "--json"])
-            .output()
-            .expect("couldn't get command output")
+            .output()?
             .stdout,
-    )
-    .expect("couldn't convert stdout to string");
-
-    let outputs: FlakeOutputs =
-        serde_json::from_str(&cmd_output).expect("couldn't deserialize string to json");
-
+    )?;
+    let outputs: FlakeOutputs = serde_json::from_str(&flake_show_json)?;
     let system = get_nix_system();
 
-    if dev_shells && build {
-        println!("Building dev shell outputs\n");
-        for (sys, shell) in outputs.dev_shells {
-            for (name, _) in shell {
-                if sys == system {
-                    let output = format!(".#devShells.{system}.{name}");
-                    println!("Building dev shell {name}");
-                    nix_build(&output);
-                    println!("Successfully built dev shell {name}");
-                }
-            }
-        }
-    }
-
-    if packages && build {
-        println!("Building package outputs\n");
-        for (sys, pkg) in outputs.packages {
+    // Package outputs
+    if let Some(packages) = outputs.packages {
+        println!("Building package outputs");
+        for (sys, pkg) in packages {
             for (name, _) in pkg {
                 if sys == system {
                     let output = format!(".#packages.{system}.{name}");
-                    println!("Building package {name}");
-                    nix_build(&output);
+                    println!("Building package output {name}");
+                    nix_build(&output)?;
                     println!("Successfully built package {name}");
                 }
             }
         }
+        println!("Finished building package outputs");
     }
+
+    // Dev shell outputs
+    if let Some(dev_shells) = outputs.dev_shells {
+        println!("Building dev shell outputs");
+        for (sys, shell) in dev_shells {
+            for (name, _) in shell {
+                if sys == system {
+                    let output = format!(".#devShells.{system}.{name}");
+                    println!("Building dev shell {name}");
+                    nix_build(&output)?;
+                    println!("Successfully built dev shell {name}");
+                }
+            }
+        }
+        println!("Finished building dev shell outputs");
+    }
+
+    // Docker image outputs
+    if let Some(docker_images) = outputs.docker_images {
+        println!("Building Docker image outputs");
+        for (sys, docker_image) in docker_images {
+            for (name, _) in docker_image {
+                if sys == system {
+                    let output = format!(".#devShells.{system}.{name}");
+                    println!("Building Docker image {name}");
+                    nix_build(&output)?;
+                    println!("Successfully built Docker image {name}");
+                }
+            }
+        }
+        println!("Finished building Docker image outputs");
+    }
+
+    Ok(())
 }
