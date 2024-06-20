@@ -158,5 +158,8 @@ fn get_output_json(dir: PathBuf) -> Result<SchemaOutput, FlakeIterError> {
     }
 
     let schema_output_json: SchemaOutput = serde_json::from_slice(&nix_eval_stdout)?;
+
+    std::fs::remove_dir_all(tempdir)?;
+
     Ok(schema_output_json)
 }
