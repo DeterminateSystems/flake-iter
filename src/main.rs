@@ -1,91 +1,58 @@
-use core::panic;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     path::PathBuf,
     process::{Command, Output},
 };
 
 use clap::Parser;
-use serde::{Deserialize, Serialize};
+use flake_iter::{
+    flake::{Buildable, InventoryItem, SchemaOutput},
+    get_nix_system, Cli, FlakeIterError,
+};
 use serde_json::Value;
-
-/// A tool for building all the derivations in a flake's output.
-#[derive(Parser)]
-struct Cli {
-    #[arg(short = 'd', long, default_value = ".")]
-    directory: PathBuf,
-}
-
-#[derive(Serialize, Deserialize)]
-struct SchemaOutput {
-    // ignore docs field
-    inventory: HashMap<String, InventoryItem>,
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(untagged)]
-enum InventoryItem {
-    Parent(InventoryParent),
-    Buildable(Buildable),
-}
-
-#[derive(Serialize, Deserialize)]
-struct InventoryParent {
-    children: HashMap<String, InventoryItem>,
-}
-
-#[derive(Serialize, Deserialize)]
-struct Buildable {
-    derivation: Option<PathBuf>,
-    #[serde(rename = "forSystems")]
-    for_systems: Option<Vec<String>>,
-}
-
-#[allow(dead_code)]
-fn get_nix_system() -> String {
-    let arch = std::env::consts::ARCH;
-    let os = match std::env::consts::OS {
-        "macos" => "darwin",
-        "linux" => "linux",
-        os => {
-            panic!("os type {} not recognized", os);
-        }
-    };
-    format!("{arch}-{os}")
-}
-
-#[derive(Debug, thiserror::Error)]
-enum FlakeIterError {
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
-
-    #[error(transparent)]
-    Json(#[from] serde_json::Error),
-
-    #[error("{0}")]
-    Misc(String),
-
-    #[error(transparent)]
-    Utf8(#[from] std::string::FromUtf8Error),
-}
+use tracing::{debug, info};
+use tracing_subscriber::EnvFilter;
 
 fn main() -> Result<(), FlakeIterError> {
+    tracing_subscriber::fmt()
+        .with_ansi(true)
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
+
     let Cli { directory } = Cli::parse();
 
-    let current_system = get_nix_system();
+    info!(
+        dir = ?directory,
+        "Building all derivations in the specified flake"
+    );
+
+    let flake_path = directory.join("flake.nix");
+    debug!(flake = ?flake_path, "Searching for derivations in flake outputs");
 
     let outputs: SchemaOutput = get_output_json(directory)?;
 
+    debug!("Flake outputs successfully parsed");
+
+    let current_system = get_nix_system();
     let mut derivations: HashSet<PathBuf> = HashSet::new();
 
     for item in outputs.inventory.values() {
         handle_item(&mut derivations, item, &current_system);
     }
 
-    println!("Derivations to build:");
+    debug!(
+        num = derivations.len(),
+        system = current_system,
+        "Discovered all flake derivation outputs"
+    );
+
     for drv in derivations {
-        println!("{drv:?}");
+        let drv = format!("{drv:?}^*");
+        debug!(drv = ?drv, "Building derivation");
+        nix_command(&["build", &drv])?;
     }
+
+    info!("Successfully built all derivations");
 
     Ok(())
 }
@@ -100,7 +67,11 @@ fn handle_item(derivations: &mut HashSet<PathBuf>, item: &InventoryItem, current
                 for system in for_systems {
                     if system == current_system {
                         if let Some(derivation) = derivation {
-                            derivations.insert(derivation.to_path_buf());
+                            if derivations.insert(derivation.to_path_buf()) {
+                                info!(drv = ?derivation, "Adding non-repeated derivation");
+                            } else {
+                                debug!(drv = ?derivation, "Skipping repeat derivation");
+                            }
                         }
                     }
                 }
