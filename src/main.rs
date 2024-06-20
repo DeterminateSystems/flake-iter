@@ -1,16 +1,42 @@
 use core::panic;
-use std::collections::HashMap;
+use std::{collections::HashMap, io::Write, path::PathBuf, process::Command};
 
-use serde::Deserialize;
+use clap::Parser;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-#[derive(Debug, Deserialize)]
-struct FlakeOutputs {
-    #[serde(rename = "devShells")]
-    dev_shells: Option<HashMap<String, HashMap<String, Value>>>,
-    #[serde(rename = "dockerImages")]
-    docker_images: Option<HashMap<String, HashMap<String, Value>>>,
-    packages: Option<HashMap<String, HashMap<String, Value>>>,
+const FLAKE_URL_PLACEHOLDER_UUID: &str = "c9026fc0-ced9-48e0-aa3c-fc86c4c86df1";
+
+/// A tool for building all the derivations in a flake's output.
+#[derive(Parser)]
+struct Cli {
+    #[arg(short = 'd', long, default_value = ".")]
+    directory: PathBuf,
+}
+
+#[derive(Serialize, Deserialize)]
+struct SchemaOutput {
+    // ignore docs
+    inventory: HashMap<String, InventoryItem>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+enum InventoryItem {
+    Parent(InventoryParent),
+    Buildable(Buildable),
+}
+
+#[derive(Serialize, Deserialize)]
+struct InventoryParent {
+    children: HashMap<String, InventoryItem>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct Buildable {
+    derivation: PathBuf,
+    #[serde(rename = "forSystems")]
+    for_systems: Vec<String>,
 }
 
 fn get_nix_system() -> String {
@@ -25,13 +51,6 @@ fn get_nix_system() -> String {
     format!("{arch}-{os}")
 }
 
-fn nix_build(output: &str) -> Result<(), FlakeIterError> {
-    std::process::Command::new("nix")
-        .args(["build", output])
-        .output()?;
-    Ok(())
-}
-
 #[derive(Debug, thiserror::Error)]
 enum FlakeIterError {
     #[error(transparent)]
@@ -40,67 +59,87 @@ enum FlakeIterError {
     #[error(transparent)]
     Json(#[from] serde_json::Error),
 
+    #[error("{0}")]
+    Misc(String),
+
     #[error(transparent)]
     Utf8(#[from] std::string::FromUtf8Error),
 }
 
 fn main() -> Result<(), FlakeIterError> {
-    let flake_show_json = String::from_utf8(
-        std::process::Command::new("nix")
-            .args(["flake", "show", "--json"])
-            .output()?
-            .stdout,
-    )?;
-    let outputs: FlakeOutputs = serde_json::from_str(&flake_show_json)?;
-    let system = get_nix_system();
+    let Cli { directory } = Cli::parse();
+
+    let outputs: SchemaOutput = get_output_json(directory)?;
+    let current_system = get_nix_system();
 
     // Package outputs
-    if let Some(packages) = outputs.packages {
-        println!("Building package outputs");
-        for (sys, pkg) in packages {
-            for (name, _) in pkg {
-                if sys == system {
-                    let output = format!(".#packages.{system}.{name}");
-                    println!("Building package output {name}");
-                    nix_build(&output)?;
-                    println!("Successfully built package {name}");
-                }
-            }
-        }
-        println!("Finished building package outputs");
-    }
-
-    // Dev shell outputs
-    if let Some(dev_shells) = outputs.dev_shells {
-        println!("Building dev shell outputs");
-        for (sys, shell) in dev_shells {
-            for (name, _) in shell {
-                if sys == system {
-                    let output = format!(".#devShells.{system}.{name}");
-                    println!("Building dev shell {name}");
-                    nix_build(&output)?;
-                    println!("Successfully built dev shell {name}");
-                }
-            }
-        }
-        println!("Finished building dev shell outputs");
-    }
-
-    // Docker image outputs
-    if let Some(docker_images) = outputs.docker_images {
-        println!("Building Docker image outputs");
-        for (sys, docker_image) in docker_images {
-            for (name, _) in docker_image {
-                if sys == system {
-                    let output = format!(".#devShells.{system}.{name}");
-                    println!("Building Docker image {name}");
-                    nix_build(&output)?;
-                    println!("Successfully built Docker image {name}");
-                }
-            }
-        }
-        println!("Finished building Docker image outputs");
+    for (name, item) in outputs.inventory {
+        handle_item(&name, item, &current_system);
     }
 
     Ok(())
+}
+
+fn handle_item(name: &str, item: InventoryItem, current_system: &str) {
+    match item {
+        InventoryItem::Buildable(buildable) => {
+            for system in buildable.for_systems {
+                if system == current_system {
+                    println!("name: {name}, buildable: {:?}", buildable.derivation);
+                }
+            }
+        }
+        InventoryItem::Parent(parent) => {
+            for (name, item) in parent.children {
+                handle_item(&name, item, &current_system);
+            }
+        }
+    }
+}
+
+fn get_output_json(dir: PathBuf) -> Result<SchemaOutput, FlakeIterError> {
+    let metadata_json_output = Command::new("nix")
+        .args([
+            "flake",
+            "metadata",
+            "--json",
+            "--no-write-lock-file",
+            &dir.as_path().display().to_string(),
+        ])
+        .output()?;
+    let metadata_json: Value = serde_json::from_slice(&metadata_json_output.stdout)?;
+    let flake_locked_url =
+        metadata_json
+            .get("url")
+            .and_then(Value::as_str)
+            .ok_or(FlakeIterError::Misc(String::from(
+                "url field missing from flake metadata JSON",
+            )))?;
+
+    let tempdir = tempfile::Builder::new()
+        .prefix("flakehub_push_outputs")
+        .tempdir()?;
+
+    let flake_contents = include_str!("mixed-flake.nix")
+        .replace(FLAKE_URL_PLACEHOLDER_UUID, &flake_locked_url)
+        .replace("INCLUDE_OUTPUT_PATHS", "true");
+
+    let mut flake = std::fs::File::create(tempdir.path().join("flake.nix"))?;
+    flake.write_all(flake_contents.as_bytes())?;
+
+    let drv = format!("{}#contents", tempdir.path().display());
+    let nix_eval_output = Command::new("nix")
+        .args(["eval", "--json", "--no-write-lock-file", &drv])
+        .output()?;
+
+    if !nix_eval_output.status.success() {
+        return Err(FlakeIterError::Misc(format!(
+            "Failed to get flake outputs from tarball {}: {}",
+            flake_locked_url,
+            String::from_utf8(nix_eval_output.stderr)?
+        )));
+    }
+
+    let schema_output_json: SchemaOutput = serde_json::from_slice(&nix_eval_output.stdout)?;
+    Ok(schema_output_json)
 }

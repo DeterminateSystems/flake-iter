@@ -4,6 +4,16 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+clap = { version = "4.5.7", default-features = false, features = [
+  "color",
+  "derive",
+  "env",
+  "error-context",
+  "help",
+  "std",
+  "suggestions",
+  "usage",
+] }
 serde = { version = "1.0.197", default-features = false, features = [
   "derive",
   "std",
@@ -11,4 +21,5 @@ serde = { version = "1.0.197", default-features = false, features = [
 serde_json = { version = "1.0.115", default-features = false, features = [
   "std",
 ] }
+tempfile = { version = "3.10.1", default-features = false }
 thiserror = { version = "1.0.61", default-features = false }
