@@ -40,7 +40,7 @@ fn main() -> Result<(), FlakeIterError> {
     if !flake_path.exists() {
         return Err(FlakeIterError::Misc(format!(
             "No flake found at {}",
-            directory.display().to_string()
+            directory.display()
         )));
     }
 
