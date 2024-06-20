@@ -6,10 +6,10 @@ use clap::Parser;
 #[derive(Parser)]
 pub struct Cli {
     /// The directory of the target flake.
-    #[arg(short, long, default_value = ".")]
+    #[arg(short, long, env = "FLAKE_ITER_DIRECTORY", default_value = ".")]
     pub directory: PathBuf,
 
     /// Whether to display all Nix build output.
-    #[arg(short, long, default_value_t = false)]
+    #[arg(short, long, env = "FLAKE_ITER_VERBOSE", default_value_t = false)]
     pub verbose: bool,
 }
