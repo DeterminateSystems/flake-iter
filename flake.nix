@@ -40,6 +40,7 @@
             cargo-edit
             rust-analyzer
             nixpkgs-fmt
+            cargo-machete
           ];
 
           env = {
