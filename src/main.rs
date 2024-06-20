@@ -1,6 +1,6 @@
 use core::panic;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::PathBuf,
     process::{Command, Output},
 };
@@ -18,7 +18,7 @@ struct Cli {
 
 #[derive(Serialize, Deserialize)]
 struct SchemaOutput {
-    // ignore docs
+    // ignore docs field
     inventory: HashMap<String, InventoryItem>,
 }
 
@@ -36,11 +36,12 @@ struct InventoryParent {
 
 #[derive(Serialize, Deserialize)]
 struct Buildable {
-    derivation: PathBuf,
+    derivation: Option<PathBuf>,
     #[serde(rename = "forSystems")]
-    for_systems: Vec<String>,
+    for_systems: Option<Vec<String>>,
 }
 
+#[allow(dead_code)]
 fn get_nix_system() -> String {
     let arch = std::env::consts::ARCH;
     let os = match std::env::consts::OS {
@@ -72,27 +73,42 @@ fn main() -> Result<(), FlakeIterError> {
     let Cli { directory } = Cli::parse();
 
     let current_system = get_nix_system();
+
     let outputs: SchemaOutput = get_output_json(directory)?;
 
-    for (name, item) in outputs.inventory {
-        handle_item(&name, &item, &current_system);
+    let mut derivations: HashSet<PathBuf> = HashSet::new();
+
+    for item in outputs.inventory.values() {
+        handle_item(&mut derivations, item, &current_system);
+    }
+
+    println!("Derivations to build:");
+    for drv in derivations {
+        println!("{drv:?}");
     }
 
     Ok(())
 }
 
-fn handle_item(name: &str, item: &InventoryItem, current_system: &str) {
+fn handle_item(derivations: &mut HashSet<PathBuf>, item: &InventoryItem, current_system: &str) {
     match item {
-        InventoryItem::Buildable(buildable) => {
-            for system in &buildable.for_systems {
-                if system == current_system {
-                    println!("name: {name}, buildable: {:?}", buildable.derivation);
+        InventoryItem::Buildable(Buildable {
+            derivation,
+            for_systems,
+        }) => {
+            if let Some(for_systems) = for_systems {
+                for system in for_systems {
+                    if system == current_system {
+                        if let Some(derivation) = derivation {
+                            derivations.insert(derivation.to_path_buf());
+                        }
+                    }
                 }
             }
         }
         InventoryItem::Parent(parent) => {
-            for (name, item) in &parent.children {
-                handle_item(name, item, current_system);
+            for item in parent.children.values() {
+                handle_item(derivations, item, current_system);
             }
         }
     }
@@ -116,10 +132,8 @@ fn get_output_json(dir: PathBuf) -> Result<SchemaOutput, FlakeIterError> {
                 "url field missing from flake metadata JSON",
             )))?;
 
-    println!("flake locked URL: {flake_locked_url}");
-
-    let drv = format!("git+https://gist.github.com/bae261c8363414017fa4bdf8134ee53e.git#contents");
-    println!("derivation: {drv}");
+    let drv =
+        String::from("git+https://gist.github.com/bae261c8363414017fa4bdf8134ee53e.git#contents");
 
     let nix_eval_output = Command::new("nix")
         .args([
@@ -133,18 +147,13 @@ fn get_output_json(dir: PathBuf) -> Result<SchemaOutput, FlakeIterError> {
         ])
         .output()?;
 
-    let nix_eval_stdout = nix_eval_output.stdout;
-
-    println!(
-        "nix eval output: {}",
-        String::from_utf8(nix_eval_stdout.clone())?
-    );
+    let nix_eval_stdout = nix_eval_output.clone().stdout;
 
     if !nix_eval_output.status.success() {
         return Err(FlakeIterError::Misc(format!(
             "Failed to get flake outputs from tarball {}: {}",
             flake_locked_url,
-            String::from_utf8(nix_eval_output.stderr)?
+            String::from_utf8(nix_eval_output.clone().stderr)?
         )));
     }
 
