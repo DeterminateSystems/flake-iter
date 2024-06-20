@@ -70,6 +70,7 @@
           inherit (meta) version;
           src = self;
           doCheck = true;
+          buildInputs = with pkgs; [ libiconv ];
         };
 
         a = default;
