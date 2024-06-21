@@ -11,6 +11,10 @@ use crate::{
 
 use super::{Buildable, InventoryItem, Parent};
 
+// We need to include .drv paths when calculating the outputs so that Nix can build them
+const INSPECT_FLAKE_REF: &str =
+    "https://flakehub.com/f/DeterminateSystems/inspect/*#contents.includingOutputPaths";
+
 /// Build all the derivations in the specified flake's outputs.
 #[derive(Parser)]
 pub struct Build {
@@ -42,7 +46,7 @@ impl Build {
         bar.enable_steady_tick(Duration::from_millis(100));
 
         bar.set_message("Assembling list of derivations to build");
-        let outputs: SchemaOutput = get_output_json(self.directory.clone())?;
+        let outputs: SchemaOutput = get_output_json(self.directory.clone(), INSPECT_FLAKE_REF)?;
 
         let mut derivations: HashSet<PathBuf> = HashSet::new();
         for item in outputs.inventory.values() {

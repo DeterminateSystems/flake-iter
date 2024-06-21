@@ -16,15 +16,6 @@ use serde_json::Value;
 
 use crate::FlakeIterError;
 
-const INSPECT_FLAKE_REF: &str =
-    "git+https://gist.github.com/bae261c8363414017fa4bdf8134ee53e.git#contents";
-
-const X86_64_LINUX: &str = "x86_64-linux";
-const X86_64_LINUX_RUNNER: &str = "ubuntu-latest";
-const X86_64_DARWIN: &str = "x86_64-darwin";
-const AARCH64_DARWIN: &str = "aarch64-darwin";
-const DARWIN_RUNNER: &str = "macos-latest";
-
 #[derive(Deserialize)]
 struct SchemaOutput {
     // ignore docs field
@@ -58,16 +49,7 @@ struct SystemAndRunner {
 }
 
 impl SchemaOutput {
-    fn systems(&self, runner_map: &Option<HashMap<String, String>>) -> Vec<SystemAndRunner> {
-        let runner_map = runner_map.clone().unwrap_or(HashMap::from([
-            (
-                String::from(X86_64_LINUX),
-                String::from(X86_64_LINUX_RUNNER),
-            ),
-            (String::from(X86_64_DARWIN), String::from(DARWIN_RUNNER)),
-            (String::from(AARCH64_DARWIN), String::from(DARWIN_RUNNER)),
-        ]));
-
+    fn systems(&self, runner_map: HashMap<String, String>) -> Vec<SystemAndRunner> {
         let mut systems: HashSet<SystemAndRunner> = HashSet::new();
 
         for item in self.inventory.values() {
@@ -84,19 +66,14 @@ fn iterate(
     runner_map: &HashMap<String, String>,
 ) {
     match item {
-        InventoryItem::Buildable(Buildable {
-            derivation,
-            for_systems,
-        }) => {
+        InventoryItem::Buildable(Buildable { for_systems, .. }) => {
             if let Some(for_systems) = for_systems {
                 for system in for_systems {
-                    if derivation.is_some() {
-                        if let Some(runner) = runner_map.get(system) {
-                            systems.insert(SystemAndRunner {
-                                runner: String::from(runner),
-                                nix_system: String::from(system),
-                            });
-                        }
+                    if let Some(runner) = runner_map.get(system) {
+                        systems.insert(SystemAndRunner {
+                            runner: String::from(runner),
+                            nix_system: String::from(system),
+                        });
                     }
                 }
             }
@@ -109,7 +86,7 @@ fn iterate(
     }
 }
 
-fn get_output_json(dir: PathBuf) -> Result<SchemaOutput, FlakeIterError> {
+fn get_output_json(dir: PathBuf, inspect_flake_ref: &str) -> Result<SchemaOutput, FlakeIterError> {
     let metadata_json_output = nix_command(&[
         "flake",
         "metadata",
@@ -127,8 +104,6 @@ fn get_output_json(dir: PathBuf) -> Result<SchemaOutput, FlakeIterError> {
                 "url field missing from flake metadata JSON",
             )))?;
 
-    let inspect_drv = String::from(INSPECT_FLAKE_REF);
-
     let nix_eval_output = Command::new("nix")
         .args([
             "eval",
@@ -137,7 +112,7 @@ fn get_output_json(dir: PathBuf) -> Result<SchemaOutput, FlakeIterError> {
             "--override-input",
             "flake",
             flake_locked_url,
-            &inspect_drv,
+            inspect_flake_ref,
         ])
         .output()?;
 
