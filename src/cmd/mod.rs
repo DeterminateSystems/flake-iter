@@ -127,7 +127,7 @@ fn get_output_json(dir: PathBuf, inspect_flake_ref: &str) -> Result<SchemaOutput
             "--override-input",
             "flake",
             flake_locked_url,
-            &inspect_flake_ref,
+            inspect_flake_ref,
         ])
         .output()?;
 
