@@ -11,7 +11,7 @@ use crate::{
 
 use super::{Buildable, InventoryItem, Parent};
 
-/// Build all derivations in the flake outputs.
+/// Build all the derivations in the specified flake's outputs.
 #[derive(Parser)]
 pub struct Build {
     /// The directory of the target flake.

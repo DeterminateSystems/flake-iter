@@ -4,11 +4,23 @@ A convenient tool for building all of your Nix stuff.
 
 ## Build all derivations
 
+The `build` command determines which of your flake's outputs are derivations and builds them all:
+
 ```shell
 flake-iter build
 ```
 
-Add the `--verbose` flag for debug-level logging and output piped from each `nix build` invocation.
+Add the `--verbose`/`-v` flag for debug-level logging and output piped from each `nix build` invocation.
+
+```shell
+flake-iter build --verbose
+```
+
+You can specify a directory different from the current directory using the `--directory`/`-d` option:
+
+```shell
+flake-iter build --directory ./my-dir
+```
 
 ## Output systems list
 
