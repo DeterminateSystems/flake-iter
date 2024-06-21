@@ -1,6 +1,7 @@
 use std::{
     collections::HashSet,
-    io::{BufRead, BufReader},
+    fs::File,
+    io::{BufRead, BufReader, Write},
     path::PathBuf,
     process::{Command, Output, Stdio},
     time::Duration,
@@ -17,7 +18,11 @@ use tracing::{debug, info, Level};
 use tracing_subscriber::EnvFilter;
 
 fn main() -> Result<(), FlakeIterError> {
-    let Cli { directory, verbose } = Cli::parse();
+    let Cli {
+        directory,
+        verbose,
+        matrix,
+    } = Cli::parse();
     let default_log_level = if verbose { Level::DEBUG } else { Level::INFO };
 
     tracing_subscriber::fmt()
@@ -29,6 +34,31 @@ fn main() -> Result<(), FlakeIterError> {
         )
         .init();
 
+    if matrix {
+        output_matrix(directory)?;
+    } else {
+        build_all_derivations(directory, verbose)?;
+    }
+
+    Ok(())
+}
+
+fn output_matrix(directory: PathBuf) -> Result<(), FlakeIterError> {
+    info!("Generating systems matrix for GitHub Actions");
+    let outputs: SchemaOutput = get_output_json(directory)?;
+    let matrix_str = serde_json::to_string(&outputs.systems())?;
+    let output_str = format!("systems={}", matrix_str);
+    debug!("Output string: {output_str}");
+    let github_output_file = std::env::var("GITHUB_OUTPUT")?;
+    debug!("Writing output string to {}", &github_output_file);
+    let mut file = File::create(PathBuf::from(&github_output_file))?;
+    file.write_all(output_str.as_bytes())?;
+    debug!("Output string written to {}", &github_output_file);
+
+    Ok(())
+}
+
+fn build_all_derivations(directory: PathBuf, verbose: bool) -> Result<(), FlakeIterError> {
     info!(
         dir = ?directory,
         "Building all derivations in the specified flake"
