@@ -1,11 +1,21 @@
+mod build;
+mod systems;
+
+pub use build::Build;
+pub use systems::Systems;
+
 use std::{
     collections::{HashMap, HashSet},
+    io::{BufRead, BufReader},
     path::PathBuf,
+    process::{Command, Output, Stdio},
 };
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
-// TODO: make this more customizable
+use crate::FlakeIterError;
+
 const X86_64_LINUX: &str = "x86_64-linux";
 const X86_64_LINUX_RUNNER: &str = "UbuntuLatest32Cores128G";
 const AARCH64_LINUX: &str = "aarch64-linux";
@@ -16,39 +26,39 @@ const AARCH64_DARWIN: &str = "aarch64-darwin";
 const AARCH64_DARWIN_RUNNER: &str = "macos-latest-xlarge";
 
 #[derive(Deserialize)]
-pub struct SchemaOutput {
+struct SchemaOutput {
     // ignore docs field
-    pub inventory: HashMap<String, InventoryItem>,
+    inventory: HashMap<String, InventoryItem>,
 }
 
 #[derive(Deserialize)]
 #[serde(untagged)]
-pub enum InventoryItem {
+pub(super) enum InventoryItem {
     Parent(Parent),
     Buildable(Buildable),
 }
 
 #[derive(Deserialize)]
-pub struct Parent {
-    pub children: HashMap<String, InventoryItem>,
+pub(super) struct Parent {
+    children: HashMap<String, InventoryItem>,
 }
 
 #[derive(Deserialize)]
-pub struct Buildable {
-    pub derivation: Option<PathBuf>,
+pub(super) struct Buildable {
+    derivation: Option<PathBuf>,
     #[serde(rename = "forSystems")]
-    pub for_systems: Option<Vec<String>>,
+    for_systems: Option<Vec<String>>,
 }
 
 #[derive(Eq, Hash, PartialEq, Serialize)]
-pub struct SystemAndRunner {
+struct SystemAndRunner {
     runner: String,
     #[serde(rename = "nix-system")]
     nix_system: String,
 }
 
 impl SchemaOutput {
-    pub fn systems(&self, runner_map: &Option<HashMap<String, String>>) -> Vec<SystemAndRunner> {
+    fn systems(&self, runner_map: &Option<HashMap<String, String>>) -> Vec<SystemAndRunner> {
         let runner_map = runner_map.clone().unwrap_or(HashMap::from([
             (
                 String::from(X86_64_LINUX),
@@ -107,4 +117,75 @@ fn iterate(
             }
         }
     }
+}
+
+fn get_output_json(dir: PathBuf) -> Result<SchemaOutput, FlakeIterError> {
+    let metadata_json_output = nix_command(&[
+        "flake",
+        "metadata",
+        "--json",
+        "--no-write-lock-file",
+        &dir.as_path().display().to_string(),
+    ])?;
+    let metadata_json: Value = serde_json::from_slice(&metadata_json_output.stdout)?;
+
+    let flake_locked_url =
+        metadata_json
+            .get("url")
+            .and_then(Value::as_str)
+            .ok_or(FlakeIterError::Misc(String::from(
+                "url field missing from flake metadata JSON",
+            )))?;
+
+    let drv =
+        String::from("git+https://gist.github.com/bae261c8363414017fa4bdf8134ee53e.git#contents");
+
+    let nix_eval_output = Command::new("nix")
+        .args([
+            "eval",
+            "--json",
+            "--no-write-lock-file",
+            "--override-input",
+            "flake",
+            flake_locked_url,
+            &drv,
+        ])
+        .output()?;
+
+    let nix_eval_stdout = nix_eval_output.clone().stdout;
+
+    if !nix_eval_output.status.success() {
+        return Err(FlakeIterError::Misc(format!(
+            "Failed to get flake outputs from tarball {}: {}",
+            flake_locked_url,
+            String::from_utf8(nix_eval_output.clone().stderr)?
+        )));
+    }
+
+    let schema_output_json: SchemaOutput = serde_json::from_slice(&nix_eval_stdout)?;
+
+    Ok(schema_output_json)
+}
+
+fn nix_command(args: &[&str]) -> Result<Output, FlakeIterError> {
+    Ok(Command::new("nix").args(args).output()?)
+}
+
+fn nix_command_pipe(args: &[&str]) -> Result<(), FlakeIterError> {
+    let mut cmd = Command::new("nix")
+        .args(args)
+        .stdout(Stdio::piped())
+        .spawn()?;
+
+    if let Some(stdout) = cmd.stdout.take() {
+        let reader = BufReader::new(stdout);
+        for line in reader.lines() {
+            match line {
+                Ok(log) => println!("{}", log),
+                Err(e) => eprintln!("Error reading line: {}", e),
+            }
+        }
+    }
+
+    Ok(())
 }
