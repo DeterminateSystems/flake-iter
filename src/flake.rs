@@ -48,18 +48,41 @@ pub struct SystemAndRunner {
 }
 
 impl SchemaOutput {
-    pub fn systems(&self) -> Vec<SystemAndRunner> {
+    pub fn systems(&self, runner_map: &Option<HashMap<String, String>>) -> Vec<SystemAndRunner> {
+        let runner_map = runner_map.clone().unwrap_or(HashMap::from([
+            (
+                String::from(X86_64_LINUX),
+                String::from(X86_64_LINUX_RUNNER),
+            ),
+            (
+                String::from(AARCH64_LINUX),
+                String::from(AARCH64_LINUX_RUNNER),
+            ),
+            (
+                String::from(X86_64_DARWIN),
+                String::from(X86_64_DARWIN_RUNNER),
+            ),
+            (
+                String::from(AARCH64_DARWIN),
+                String::from(AARCH64_DARWIN_RUNNER),
+            ),
+        ]));
+
         let mut systems: HashSet<SystemAndRunner> = HashSet::new();
 
         for item in self.inventory.values() {
-            iterate(&mut systems, item);
+            iterate(&mut systems, item, &runner_map);
         }
 
         Vec::from_iter(systems)
     }
 }
 
-fn iterate(systems: &mut HashSet<SystemAndRunner>, item: &InventoryItem) {
+fn iterate(
+    systems: &mut HashSet<SystemAndRunner>,
+    item: &InventoryItem,
+    runner_map: &HashMap<String, String>,
+) {
     match item {
         InventoryItem::Buildable(Buildable {
             derivation,
@@ -68,32 +91,10 @@ fn iterate(systems: &mut HashSet<SystemAndRunner>, item: &InventoryItem) {
             if let Some(for_systems) = for_systems {
                 for system in for_systems {
                     if derivation.is_some() {
-                        // TODO: make this more elegant
-                        if system == X86_64_LINUX {
+                        if let Some(runner) = runner_map.get(system) {
                             systems.insert(SystemAndRunner {
-                                runner: String::from(X86_64_LINUX_RUNNER),
-                                nix_system: String::from(X86_64_LINUX),
-                            });
-                        }
-
-                        if system == AARCH64_LINUX {
-                            systems.insert(SystemAndRunner {
-                                runner: String::from(AARCH64_LINUX_RUNNER),
-                                nix_system: String::from(AARCH64_LINUX),
-                            });
-                        }
-
-                        if system == X86_64_DARWIN {
-                            systems.insert(SystemAndRunner {
-                                runner: String::from(X86_64_DARWIN_RUNNER),
-                                nix_system: String::from(X86_64_DARWIN),
-                            });
-                        }
-
-                        if system == AARCH64_DARWIN {
-                            systems.insert(SystemAndRunner {
-                                runner: String::from(AARCH64_DARWIN_RUNNER),
-                                nix_system: String::from(AARCH64_DARWIN),
+                                runner: String::from(runner),
+                                nix_system: String::from(system),
                             });
                         }
                     }
@@ -102,7 +103,7 @@ fn iterate(systems: &mut HashSet<SystemAndRunner>, item: &InventoryItem) {
         }
         InventoryItem::Parent(Parent { children }) => {
             for item in children.values() {
-                iterate(systems, item);
+                iterate(systems, item, runner_map);
             }
         }
     }

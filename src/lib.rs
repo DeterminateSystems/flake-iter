@@ -1,8 +1,7 @@
-mod cli;
+pub mod cli;
 mod error;
 pub mod flake;
 
-pub use cli::Cli;
 pub use error::FlakeIterError;
 
 pub fn get_nix_system() -> String {

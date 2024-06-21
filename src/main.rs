@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     fs::File,
     io::{BufRead, BufReader, Write},
     path::PathBuf,
@@ -9,8 +9,9 @@ use std::{
 
 use clap::Parser;
 use flake_iter::{
+    cli::{Build, Cli, FlakeIterCommand, Systems},
     flake::{Buildable, InventoryItem, Parent, SchemaOutput},
-    get_nix_system, Cli, FlakeIterError,
+    get_nix_system, FlakeIterError,
 };
 use indicatif::ProgressBar;
 use serde_json::Value;
@@ -18,11 +19,7 @@ use tracing::{debug, info, Level};
 use tracing_subscriber::EnvFilter;
 
 fn main() -> Result<(), FlakeIterError> {
-    let Cli {
-        directory,
-        verbose,
-        systems,
-    } = Cli::parse();
+    let Cli { verbose, command } = Cli::parse();
     let default_log_level = if verbose { Level::DEBUG } else { Level::INFO };
 
     tracing_subscriber::fmt()
@@ -34,19 +31,26 @@ fn main() -> Result<(), FlakeIterError> {
         )
         .init();
 
-    if systems {
-        output_systems(directory)?;
-    } else {
-        build_all_derivations(directory, verbose)?;
+    match command {
+        FlakeIterCommand::Build(Build { directory }) => build_all_derivations(directory, verbose)?,
+        FlakeIterCommand::Systems(Systems {
+            directory,
+            runner_map,
+        }) => output_systems(directory, runner_map)?,
     }
 
     Ok(())
 }
 
-fn output_systems(directory: PathBuf) -> Result<(), FlakeIterError> {
+fn output_systems(directory: PathBuf, runner_map: Option<Value>) -> Result<(), FlakeIterError> {
+    let runner_map: Option<HashMap<String, String>> = if let Some(runner_map) = runner_map {
+        serde_json::from_value(runner_map)?
+    } else {
+        None
+    };
     info!("Generating systems matrix for GitHub Actions");
     let outputs: SchemaOutput = get_output_json(directory)?;
-    let matrix_str = serde_json::to_string(&outputs.systems())?;
+    let matrix_str = serde_json::to_string(&outputs.systems(&runner_map))?;
     let output_str = format!("systems={}", matrix_str);
     debug!("Output string: {output_str}");
     let github_output_file = std::env::var("GITHUB_OUTPUT")?;
