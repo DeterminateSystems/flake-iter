@@ -19,3 +19,7 @@ jobs:
 
       - name: Clippy
         run: nix develop --command cargo clippy --all-targets --all-features --  -Dwarnings
+
+      - name: Unused dependencies
+        run: |
+          nix develop --command cargo machete

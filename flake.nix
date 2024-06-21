@@ -49,10 +49,10 @@
             rust-analyzer
             nixpkgs-fmt
             cargo-machete
+            iconv
           ];
 
           env = {
-            RUST_LOG = "debug";
             RUST_SRC_PATH = "${pkgs.rustToolchain}/lib/rustlib/src/rust/library";
           };
         };
@@ -70,7 +70,7 @@
           inherit (meta) version;
           src = self;
           doCheck = true;
-          buildInputs = with pkgs; [ libiconv ];
+          buildInputs = with pkgs; [ iconv ];
         };
 
         a = default;

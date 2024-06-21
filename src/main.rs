@@ -13,16 +13,21 @@ use flake_iter::{
 };
 use indicatif::ProgressBar;
 use serde_json::Value;
-use tracing::{debug, info};
+use tracing::{debug, info, Level};
 use tracing_subscriber::EnvFilter;
 
 fn main() -> Result<(), FlakeIterError> {
+    let Cli { directory, verbose } = Cli::parse();
+    let default_log_level = if verbose { Level::DEBUG } else { Level::INFO };
+
     tracing_subscriber::fmt()
         .with_ansi(true)
-        .with_env_filter(EnvFilter::from_default_env())
+        .with_env_filter(
+            EnvFilter::builder()
+                .with_default_directive(default_log_level.into())
+                .from_env_lossy(),
+        )
         .init();
-
-    let Cli { directory, verbose } = Cli::parse();
 
     info!(
         dir = ?directory,
@@ -31,6 +36,14 @@ fn main() -> Result<(), FlakeIterError> {
 
     let current_system = get_nix_system();
     let flake_path = directory.join("flake.nix");
+
+    if !flake_path.exists() {
+        return Err(FlakeIterError::Misc(format!(
+            "No flake found at {}",
+            directory.display()
+        )));
+    }
+
     debug!(flake = ?flake_path, "Searching for derivations in flake outputs");
 
     let bar = ProgressBar::new_spinner();
@@ -45,26 +58,38 @@ fn main() -> Result<(), FlakeIterError> {
     }
     bar.finish_and_clear();
 
-    debug!(
-        num = derivations.len(),
-        system = current_system,
-        "Discovered all flake derivation outputs"
-    );
+    let num = derivations.len();
 
-    info!("Building all unique derivations");
+    if num > 0 {
+        debug!(
+            num = derivations.len(),
+            system = current_system,
+            "Discovered all flake derivation outputs"
+        );
 
-    for drv in derivations {
-        let drv = format!("{}^*", drv.display());
-        debug!(drv, "Building derivation");
-        let args = &["build", &drv];
-        if verbose {
-            nix_command_pipe(args)?;
-        } else {
-            nix_command(args)?;
+        info!("Building all unique derivations");
+
+        let mut n = 1;
+        for drv in derivations {
+            let drv = format!("{}^*", drv.display());
+            if verbose {
+                debug!(drv, "Building derivation {n} of {num}");
+            } else {
+                info!("Building derivation {n} of {num}");
+            }
+            let args = &["build", &drv];
+            if verbose {
+                nix_command_pipe(args)?;
+            } else {
+                nix_command(args)?;
+            }
+            n += 1;
         }
-    }
 
-    info!("Successfully built all derivations");
+        info!("Successfully built all derivations");
+    } else {
+        info!("No derivations to build; exiting");
+    }
 
     Ok(())
 }
@@ -84,7 +109,7 @@ fn iterate_through_output_graph(
                     if system == current_system {
                         if let Some(derivation) = derivation {
                             if derivations.insert(derivation.to_path_buf()) {
-                                info!(drv = ?derivation, "Adding non-repeated derivation");
+                                debug!(drv = ?derivation, "Adding non-repeated derivation");
                             } else {
                                 debug!(drv = ?derivation, "Skipping repeat derivation");
                             }
