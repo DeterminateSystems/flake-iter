@@ -25,4 +25,4 @@ jobs:
 
       - name: Build and cache everything
         run: |
-          nix develop --command cargo run
+          nix develop --command cargo run -- build
