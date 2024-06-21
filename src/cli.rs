@@ -13,7 +13,12 @@ pub struct Cli {
     #[arg(short, long, env = "FLAKE_ITER_VERBOSE", default_value_t = false)]
     pub verbose: bool,
 
-    /// Whether to write the systems matrix to the file at `$GITHUB_OUTPUT`.
-    #[arg(short, long, env = "FLAKE_ITER_MATRIX", default_value_t = false)]
-    pub matrix: bool,
+    /// Whether to write the systems/runners array to the file at `$GITHUB_OUTPUT`.
+    #[arg(
+        short,
+        long,
+        env = "FLAKE_ITER_SYSTEMS_OUTPUT",
+        default_value_t = false
+    )]
+    pub systems: bool,
 }

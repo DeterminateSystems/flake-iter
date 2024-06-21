@@ -21,7 +21,7 @@ fn main() -> Result<(), FlakeIterError> {
     let Cli {
         directory,
         verbose,
-        matrix,
+        systems,
     } = Cli::parse();
     let default_log_level = if verbose { Level::DEBUG } else { Level::INFO };
 
@@ -34,8 +34,8 @@ fn main() -> Result<(), FlakeIterError> {
         )
         .init();
 
-    if matrix {
-        output_matrix(directory)?;
+    if systems {
+        output_systems(directory)?;
     } else {
         build_all_derivations(directory, verbose)?;
     }
@@ -43,7 +43,7 @@ fn main() -> Result<(), FlakeIterError> {
     Ok(())
 }
 
-fn output_matrix(directory: PathBuf) -> Result<(), FlakeIterError> {
+fn output_systems(directory: PathBuf) -> Result<(), FlakeIterError> {
     info!("Generating systems matrix for GitHub Actions");
     let outputs: SchemaOutput = get_output_json(directory)?;
     let matrix_str = serde_json::to_string(&outputs.systems())?;
