@@ -21,6 +21,10 @@ pub struct Build {
     /// The directory of the target flake.
     #[arg(short, long, env = "FLAKE_ITER_DIRECTORY", default_value = ".")]
     directory: PathBuf,
+
+    /// The specific Nix system to build for (otherwise infer the current system from arch/OS information).
+    #[arg(short, long, env = "FLAKE_ITER_NIX_SYSTEM")]
+    system: Option<String>,
 }
 
 impl Build {
@@ -30,7 +34,7 @@ impl Build {
             "Building all derivations in the specified flake"
         );
 
-        let current_system = get_nix_system();
+        let current_system = self.system.clone().unwrap_or(get_nix_system());
         let flake_path = self.directory.clone().join("flake.nix");
 
         if !flake_path.exists() {
