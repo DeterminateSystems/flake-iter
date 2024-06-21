@@ -22,6 +22,14 @@ You can specify a directory different from the current directory using the `--di
 flake-iter build --directory ./my-dir
 ```
 
+You can also specify a Nix system to build for:
+
+```shell
+flake-iter build --system myarch-myos
+```
+
+If not specified, `flake-iter` detects your current system.
+
 ## Output systems list
 
 ```shell
