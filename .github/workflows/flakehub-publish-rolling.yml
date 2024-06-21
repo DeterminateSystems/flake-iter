@@ -16,3 +16,4 @@ jobs:
         with:
           name: "DeterminateSystems/flake-iter"
           rolling: true
+          visibility: "public"
