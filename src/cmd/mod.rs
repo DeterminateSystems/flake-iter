@@ -17,7 +17,7 @@ use serde_json::Value;
 use crate::FlakeIterError;
 
 const INSPECT_FLAKE_REF: &str =
-    "git+https://gist.github.com/bae261c8363414017fa4bdf8134ee53e.git#contents";
+    "https://flakehub.com/f/DeterminateSystems/inspect/*#contents.includingOutputPaths";
 
 const X86_64_LINUX: &str = "x86_64-linux";
 const X86_64_LINUX_RUNNER: &str = "ubuntu-latest";
