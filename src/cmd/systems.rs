@@ -24,21 +24,16 @@ pub struct Systems {
     /// A mapping of GitHub Actions runners to Nix systems.
     /// Example: {"aarch64-darwin": "macos-latest-xlarge"}
     #[arg(short, long, env = "FLAKE_ITER_RUNNER_MAP")]
-    runner_map: Option<String>,
+    runner_map: String,
 }
 
 impl Systems {
     pub fn execute(&self) -> Result<(), FlakeIterError> {
-        let runner_map: Option<HashMap<String, String>> =
-            if let Some(runner_map) = self.runner_map.clone() {
-                serde_json::from_str(&runner_map)?
-            } else {
-                None
-            };
+        let runner_map: HashMap<String, String> = serde_json::from_str(&self.runner_map)?;
 
         info!("Generating systems matrix for GitHub Actions");
         let outputs: SchemaOutput = get_output_json(self.directory.clone(), INSPECT_FLAKE_REF)?;
-        let matrix_str = serde_json::to_string(&outputs.systems(&runner_map))?;
+        let matrix_str = serde_json::to_string(&outputs.systems(runner_map))?;
         let output_str = format!("{GITHUB_OUTPUT_KEY}={}", matrix_str);
         debug!("Output string: {output_str}");
 

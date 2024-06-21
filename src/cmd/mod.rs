@@ -16,12 +16,6 @@ use serde_json::Value;
 
 use crate::FlakeIterError;
 
-const X86_64_LINUX: &str = "x86_64-linux";
-const X86_64_LINUX_RUNNER: &str = "ubuntu-latest";
-const X86_64_DARWIN: &str = "x86_64-darwin";
-const AARCH64_DARWIN: &str = "aarch64-darwin";
-const DARWIN_RUNNER: &str = "macos-latest";
-
 #[derive(Deserialize)]
 struct SchemaOutput {
     // ignore docs field
@@ -55,16 +49,7 @@ struct SystemAndRunner {
 }
 
 impl SchemaOutput {
-    fn systems(&self, runner_map: &Option<HashMap<String, String>>) -> Vec<SystemAndRunner> {
-        let runner_map = runner_map.clone().unwrap_or(HashMap::from([
-            (
-                String::from(X86_64_LINUX),
-                String::from(X86_64_LINUX_RUNNER),
-            ),
-            (String::from(X86_64_DARWIN), String::from(DARWIN_RUNNER)),
-            (String::from(AARCH64_DARWIN), String::from(DARWIN_RUNNER)),
-        ]));
-
+    fn systems(&self, runner_map: HashMap<String, String>) -> Vec<SystemAndRunner> {
         let mut systems: HashSet<SystemAndRunner> = HashSet::new();
 
         for item in self.inventory.values() {
