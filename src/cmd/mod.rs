@@ -16,6 +16,9 @@ use serde_json::Value;
 
 use crate::FlakeIterError;
 
+const INSPECT_FLAKE_REF: &str =
+    "git+https://gist.github.com/bae261c8363414017fa4bdf8134ee53e.git#contents";
+
 const X86_64_LINUX: &str = "x86_64-linux";
 const X86_64_LINUX_RUNNER: &str = "ubuntu-latest";
 const X86_64_DARWIN: &str = "x86_64-darwin";
@@ -49,9 +52,9 @@ pub(super) struct Buildable {
 
 #[derive(Eq, Hash, PartialEq, Serialize)]
 struct SystemAndRunner {
-    runner: String,
     #[serde(rename = "nix-system")]
     nix_system: String,
+    runner: String,
 }
 
 impl SchemaOutput {
@@ -124,9 +127,7 @@ fn get_output_json(dir: PathBuf) -> Result<SchemaOutput, FlakeIterError> {
                 "url field missing from flake metadata JSON",
             )))?;
 
-    let inspect_drv = String::from(
-        "https://flakehub.com/f/DeterminateSystems/inspect/*#contents.excludingOutputPaths",
-    );
+    let inspect_drv = String::from(INSPECT_FLAKE_REF);
 
     let nix_eval_output = Command::new("nix")
         .args([
