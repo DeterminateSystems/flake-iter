@@ -74,14 +74,10 @@ fn main() -> Result<(), FlakeIterError> {
             let drv = format!("{}^*", drv.display());
             if verbose {
                 debug!(drv, "Building derivation {n} of {num}");
+                nix_command_pipe(&["build", "-L", &drv])?;
             } else {
                 info!("Building derivation {n} of {num}");
-            }
-            let args = &["build", "-L", &drv];
-            if verbose {
-                nix_command_pipe(args)?;
-            } else {
-                nix_command(args)?;
+                nix_command(&["build", &drv])?;
             }
             n += 1;
         }
