@@ -124,8 +124,9 @@ fn get_output_json(dir: PathBuf) -> Result<SchemaOutput, FlakeIterError> {
                 "url field missing from flake metadata JSON",
             )))?;
 
-    let drv =
-        String::from("git+https://gist.github.com/bae261c8363414017fa4bdf8134ee53e.git#contents");
+    let inspect_drv = String::from(
+        "https://flakehub.com/f/DeterminateSystems/inspect/*#contents.excludingOutputPaths",
+    );
 
     let nix_eval_output = Command::new("nix")
         .args([
@@ -135,7 +136,7 @@ fn get_output_json(dir: PathBuf) -> Result<SchemaOutput, FlakeIterError> {
             "--override-input",
             "flake",
             flake_locked_url,
-            &drv,
+            &inspect_drv,
         ])
         .output()?;
 
