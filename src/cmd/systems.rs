@@ -10,6 +10,10 @@ use crate::{
 
 const GITHUB_OUTPUT_KEY: &str = "systems";
 
+// We don't need the .drv paths in the JSON as we don't need to build anything
+const INSPECT_FLAKE_REF: &str =
+    "https://flakehub.com/f/DeterminateSystems/inspect/*#contents.excludingOutputPaths";
+
 /// Write the systems/runners array to the file at `$GITHUB_OUTPUT`.
 #[derive(Parser)]
 pub struct Systems {
@@ -33,7 +37,7 @@ impl Systems {
             };
 
         info!("Generating systems matrix for GitHub Actions");
-        let outputs: SchemaOutput = get_output_json(self.directory.clone())?;
+        let outputs: SchemaOutput = get_output_json(self.directory.clone(), INSPECT_FLAKE_REF)?;
         let matrix_str = serde_json::to_string(&outputs.systems(&runner_map))?;
         let output_str = format!("{GITHUB_OUTPUT_KEY}={}", matrix_str);
         debug!("Output string: {output_str}");

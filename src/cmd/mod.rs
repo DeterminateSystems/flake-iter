@@ -16,9 +16,6 @@ use serde_json::Value;
 
 use crate::FlakeIterError;
 
-const INSPECT_FLAKE_REF: &str =
-    "https://flakehub.com/f/DeterminateSystems/inspect/*#contents.includingOutputPaths";
-
 const X86_64_LINUX: &str = "x86_64-linux";
 const X86_64_LINUX_RUNNER: &str = "ubuntu-latest";
 const X86_64_DARWIN: &str = "x86_64-darwin";
@@ -84,19 +81,14 @@ fn iterate(
     runner_map: &HashMap<String, String>,
 ) {
     match item {
-        InventoryItem::Buildable(Buildable {
-            derivation,
-            for_systems,
-        }) => {
+        InventoryItem::Buildable(Buildable { for_systems, .. }) => {
             if let Some(for_systems) = for_systems {
                 for system in for_systems {
-                    if derivation.is_some() {
-                        if let Some(runner) = runner_map.get(system) {
-                            systems.insert(SystemAndRunner {
-                                runner: String::from(runner),
-                                nix_system: String::from(system),
-                            });
-                        }
+                    if let Some(runner) = runner_map.get(system) {
+                        systems.insert(SystemAndRunner {
+                            runner: String::from(runner),
+                            nix_system: String::from(system),
+                        });
                     }
                 }
             }
@@ -109,7 +101,7 @@ fn iterate(
     }
 }
 
-fn get_output_json(dir: PathBuf) -> Result<SchemaOutput, FlakeIterError> {
+fn get_output_json(dir: PathBuf, inspect_flake_ref: &str) -> Result<SchemaOutput, FlakeIterError> {
     let metadata_json_output = nix_command(&[
         "flake",
         "metadata",
@@ -127,8 +119,6 @@ fn get_output_json(dir: PathBuf) -> Result<SchemaOutput, FlakeIterError> {
                 "url field missing from flake metadata JSON",
             )))?;
 
-    let inspect_drv = String::from(INSPECT_FLAKE_REF);
-
     let nix_eval_output = Command::new("nix")
         .args([
             "eval",
@@ -137,7 +127,7 @@ fn get_output_json(dir: PathBuf) -> Result<SchemaOutput, FlakeIterError> {
             "--override-input",
             "flake",
             flake_locked_url,
-            &inspect_drv,
+            &inspect_flake_ref,
         ])
         .output()?;
 
