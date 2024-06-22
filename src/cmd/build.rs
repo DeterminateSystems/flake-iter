@@ -1,4 +1,4 @@
-use std::{collections::HashSet, path::PathBuf, time::Duration};
+use std::{path::PathBuf, time::Duration};
 
 use clap::Parser;
 use indicatif::ProgressBar;
@@ -8,8 +8,6 @@ use crate::{
     cmd::{get_output_json, nix_command, nix_command_pipe, SchemaOutput},
     FlakeIterError,
 };
-
-use super::{Buildable, InventoryItem, Parent};
 
 // We need to include .drv paths when calculating the outputs so that Nix can build them
 const INSPECT_FLAKE_REF: &str =
@@ -51,13 +49,9 @@ impl Build {
 
         bar.set_message("Assembling list of derivations to build");
         let outputs: SchemaOutput = get_output_json(self.directory.clone(), INSPECT_FLAKE_REF)?;
-
-        let mut derivations: HashSet<PathBuf> = HashSet::new();
-        for item in outputs.inventory.values() {
-            iterate_through_output_graph(&mut derivations, item, &current_system);
-        }
         bar.finish_and_clear();
 
+        let derivations = outputs.derivations(&current_system);
         let num = derivations.len();
 
         if num > 0 {
@@ -88,38 +82,6 @@ impl Build {
         }
 
         Ok(())
-    }
-}
-
-fn iterate_through_output_graph(
-    derivations: &mut HashSet<PathBuf>,
-    item: &InventoryItem,
-    current_system: &str,
-) {
-    match item {
-        InventoryItem::Buildable(Buildable {
-            derivation,
-            for_systems,
-        }) => {
-            if let Some(for_systems) = for_systems {
-                for system in for_systems {
-                    if system == current_system {
-                        if let Some(derivation) = derivation {
-                            if derivations.insert(derivation.to_path_buf()) {
-                                debug!(drv = ?derivation, "Adding non-repeated derivation");
-                            } else {
-                                debug!(drv = ?derivation, "Skipping repeat derivation");
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        InventoryItem::Parent(Parent { children }) => {
-            for item in children.values() {
-                iterate_through_output_graph(derivations, item, current_system);
-            }
-        }
     }
 }
 
