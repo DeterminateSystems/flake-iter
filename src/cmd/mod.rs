@@ -158,17 +158,15 @@ fn get_output_json(dir: PathBuf, inspect_flake_ref: &str) -> Result<SchemaOutput
                 "url field missing from flake metadata JSON",
             )))?;
 
-    let nix_eval_output = Command::new("nix")
-        .args([
-            "eval",
-            "--json",
-            "--no-write-lock-file",
-            "--override-input",
-            "flake",
-            flake_locked_url,
-            inspect_flake_ref,
-        ])
-        .output()?;
+    let nix_eval_output = nix_command(&[
+        "eval",
+        "--json",
+        "--no-write-lock-file",
+        "--override-input",
+        "flake",
+        flake_locked_url,
+        inspect_flake_ref,
+    ])?;
 
     let nix_eval_stdout = nix_eval_output.clone().stdout;
 
