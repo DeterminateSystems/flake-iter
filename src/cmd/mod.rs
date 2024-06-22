@@ -3,7 +3,7 @@ mod systems;
 
 pub use build::Build;
 pub use systems::Systems;
-use tracing::warn;
+use tracing::{debug, warn};
 
 use std::{
     collections::{HashMap, HashSet},
@@ -50,12 +50,20 @@ struct SystemAndRunner {
 }
 
 impl SchemaOutput {
+    fn derivations(&self, current_system: &str) -> Vec<PathBuf> {
+        let mut derivations: HashSet<PathBuf> = HashSet::new();
+        for item in self.inventory.values() {
+            accumulate_derivations(&mut derivations, item, current_system);
+        }
+        Vec::from_iter(derivations)
+    }
+
     fn systems(&self, runner_map: HashMap<String, String>) -> Vec<SystemAndRunner> {
         let mut systems: HashSet<SystemAndRunner> = HashSet::new();
         let mut systems_without_runners: HashSet<String> = HashSet::new();
 
         for item in self.inventory.values() {
-            iterate(
+            accumulate_systems(
                 &mut systems,
                 &mut systems_without_runners,
                 item,
@@ -71,7 +79,39 @@ impl SchemaOutput {
     }
 }
 
-fn iterate(
+fn accumulate_derivations(
+    derivations: &mut HashSet<PathBuf>,
+    item: &InventoryItem,
+    current_system: &str,
+) {
+    match item {
+        InventoryItem::Buildable(Buildable {
+            derivation,
+            for_systems,
+        }) => {
+            if let Some(for_systems) = for_systems {
+                for system in for_systems {
+                    if system == current_system {
+                        if let Some(derivation) = derivation {
+                            if derivations.insert(derivation.to_path_buf()) {
+                                debug!(drv = ?derivation, "Adding non-repeated derivation");
+                            } else {
+                                debug!(drv = ?derivation, "Skipping repeat derivation");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        InventoryItem::Parent(Parent { children }) => {
+            for item in children.values() {
+                accumulate_derivations(derivations, item, current_system);
+            }
+        }
+    }
+}
+
+fn accumulate_systems(
     systems: &mut HashSet<SystemAndRunner>,
     systems_without_runners: &mut HashSet<String>,
     item: &InventoryItem,
@@ -94,7 +134,7 @@ fn iterate(
         }
         InventoryItem::Parent(Parent { children }) => {
             for item in children.values() {
-                iterate(systems, systems_without_runners, item, runner_map);
+                accumulate_systems(systems, systems_without_runners, item, runner_map);
             }
         }
     }
