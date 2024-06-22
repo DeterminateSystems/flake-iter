@@ -3,6 +3,7 @@ mod systems;
 
 pub use build::Build;
 pub use systems::Systems;
+use tracing::warn;
 
 use std::{
     collections::{HashMap, HashSet},
@@ -51,9 +52,19 @@ struct SystemAndRunner {
 impl SchemaOutput {
     fn systems(&self, runner_map: HashMap<String, String>) -> Vec<SystemAndRunner> {
         let mut systems: HashSet<SystemAndRunner> = HashSet::new();
+        let mut systems_without_runners: HashSet<String> = HashSet::new();
 
         for item in self.inventory.values() {
-            iterate(&mut systems, item, &runner_map);
+            iterate(
+                &mut systems,
+                &mut systems_without_runners,
+                item,
+                &runner_map,
+            );
+        }
+
+        for system in systems_without_runners {
+            warn!("Flake contains derivation outputs for Nix system `{system}` but no runner is specified for that system")
         }
 
         Vec::from_iter(systems)
@@ -62,6 +73,7 @@ impl SchemaOutput {
 
 fn iterate(
     systems: &mut HashSet<SystemAndRunner>,
+    systems_without_runners: &mut HashSet<String>,
     item: &InventoryItem,
     runner_map: &HashMap<String, String>,
 ) {
@@ -74,13 +86,15 @@ fn iterate(
                             runner: String::from(runner),
                             nix_system: String::from(system),
                         });
+                    } else {
+                        systems_without_runners.insert(String::from(system));
                     }
                 }
             }
         }
         InventoryItem::Parent(Parent { children }) => {
             for item in children.values() {
-                iterate(systems, item, runner_map);
+                iterate(systems, systems_without_runners, item, runner_map);
             }
         }
     }
