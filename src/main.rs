@@ -5,7 +5,7 @@ use flake_iter::cli::{Cli, FlakeIterCommand};
 use tracing::Level;
 use tracing_subscriber::EnvFilter;
 
-fn main() -> color_eyre::Result<std::process::ExitCode> {
+fn main() -> color_eyre::Result<ExitCode> {
     let Cli { verbose, command } = Cli::parse();
     let default_log_level = if verbose { Level::DEBUG } else { Level::INFO };
 
