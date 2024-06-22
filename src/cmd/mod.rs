@@ -3,7 +3,7 @@ mod systems;
 
 pub use build::Build;
 pub use systems::Systems;
-use tracing::{debug, warn};
+use tracing::debug;
 
 use std::{
     collections::{HashMap, HashSet},
@@ -58,7 +58,7 @@ impl SchemaOutput {
         Vec::from_iter(derivations)
     }
 
-    fn systems(&self, runner_map: HashMap<String, String>) -> Vec<SystemAndRunner> {
+    fn systems(&self, runner_map: HashMap<String, String>) -> (Vec<SystemAndRunner>, Vec<String>) {
         let mut systems: HashSet<SystemAndRunner> = HashSet::new();
         let mut systems_without_runners: HashSet<String> = HashSet::new();
 
@@ -71,11 +71,10 @@ impl SchemaOutput {
             );
         }
 
-        for system in systems_without_runners {
-            warn!("Flake contains derivation outputs for Nix system `{system}` but no runner is specified for that system")
-        }
-
-        Vec::from_iter(systems)
+        (
+            Vec::from_iter(systems),
+            Vec::from_iter(systems_without_runners),
+        )
     }
 }
 
@@ -178,9 +177,7 @@ fn get_output_json(dir: PathBuf, inspect_flake_ref: &str) -> Result<SchemaOutput
         )));
     }
 
-    let schema_output_json: SchemaOutput = serde_json::from_slice(&nix_eval_stdout)?;
-
-    Ok(schema_output_json)
+    Ok(serde_json::from_slice(&nix_eval_stdout)?)
 }
 
 fn nix_command(args: &[&str]) -> Result<Output, FlakeIterError> {
