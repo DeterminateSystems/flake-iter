@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fs::File, io::Write, path::PathBuf};
 
 use clap::Parser;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::{
     cmd::{get_output_json, SchemaOutput},
@@ -33,7 +33,14 @@ impl Systems {
 
         info!("Generating systems matrix for GitHub Actions");
         let outputs: SchemaOutput = get_output_json(self.directory.clone(), INSPECT_FLAKE_REF)?;
-        let matrix_str = serde_json::to_string(&outputs.systems(runner_map))?;
+
+        let (systems, systems_without_runners) = outputs.systems(runner_map);
+
+        for system in systems_without_runners {
+            warn!("Flake contains derivation outputs for Nix system `{system}` but no runner is specified for that system");
+        }
+
+        let matrix_str = serde_json::to_string(&systems)?;
         let output_str = format!("{GITHUB_OUTPUT_KEY}={}", matrix_str);
         debug!("Output string: {output_str}");
 

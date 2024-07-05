@@ -3,7 +3,7 @@ mod systems;
 
 pub use build::Build;
 pub use systems::Systems;
-use tracing::warn;
+use tracing::debug;
 
 use std::{
     collections::{HashMap, HashSet},
@@ -50,12 +50,20 @@ struct SystemAndRunner {
 }
 
 impl SchemaOutput {
-    fn systems(&self, runner_map: HashMap<String, String>) -> Vec<SystemAndRunner> {
+    fn derivations(&self, current_system: &str) -> Vec<PathBuf> {
+        let mut derivations: HashSet<PathBuf> = HashSet::new();
+        for item in self.inventory.values() {
+            accumulate_derivations(&mut derivations, item, current_system);
+        }
+        Vec::from_iter(derivations)
+    }
+
+    fn systems(&self, runner_map: HashMap<String, String>) -> (Vec<SystemAndRunner>, Vec<String>) {
         let mut systems: HashSet<SystemAndRunner> = HashSet::new();
         let mut systems_without_runners: HashSet<String> = HashSet::new();
 
         for item in self.inventory.values() {
-            iterate(
+            accumulate_systems(
                 &mut systems,
                 &mut systems_without_runners,
                 item,
@@ -63,15 +71,46 @@ impl SchemaOutput {
             );
         }
 
-        for system in systems_without_runners {
-            warn!("Flake contains derivation outputs for Nix system `{system}` but no runner is specified for that system")
-        }
-
-        Vec::from_iter(systems)
+        (
+            Vec::from_iter(systems),
+            Vec::from_iter(systems_without_runners),
+        )
     }
 }
 
-fn iterate(
+fn accumulate_derivations(
+    derivations: &mut HashSet<PathBuf>,
+    item: &InventoryItem,
+    current_system: &str,
+) {
+    match item {
+        InventoryItem::Buildable(Buildable {
+            derivation,
+            for_systems,
+        }) => {
+            if let Some(for_systems) = for_systems {
+                for system in for_systems {
+                    if system == current_system {
+                        if let Some(derivation) = derivation {
+                            if derivations.insert(derivation.to_path_buf()) {
+                                debug!(drv = ?derivation, "Adding non-repeated derivation");
+                            } else {
+                                debug!(drv = ?derivation, "Skipping repeat derivation");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        InventoryItem::Parent(Parent { children }) => {
+            for item in children.values() {
+                accumulate_derivations(derivations, item, current_system);
+            }
+        }
+    }
+}
+
+fn accumulate_systems(
     systems: &mut HashSet<SystemAndRunner>,
     systems_without_runners: &mut HashSet<String>,
     item: &InventoryItem,
@@ -94,7 +133,7 @@ fn iterate(
         }
         InventoryItem::Parent(Parent { children }) => {
             for item in children.values() {
-                iterate(systems, systems_without_runners, item, runner_map);
+                accumulate_systems(systems, systems_without_runners, item, runner_map);
             }
         }
     }
@@ -118,17 +157,15 @@ fn get_output_json(dir: PathBuf, inspect_flake_ref: &str) -> Result<SchemaOutput
                 "url field missing from flake metadata JSON",
             )))?;
 
-    let nix_eval_output = Command::new("nix")
-        .args([
-            "eval",
-            "--json",
-            "--no-write-lock-file",
-            "--override-input",
-            "flake",
-            flake_locked_url,
-            inspect_flake_ref,
-        ])
-        .output()?;
+    let nix_eval_output = nix_command(&[
+        "eval",
+        "--json",
+        "--no-write-lock-file",
+        "--override-input",
+        "flake",
+        flake_locked_url,
+        inspect_flake_ref,
+    ])?;
 
     let nix_eval_stdout = nix_eval_output.clone().stdout;
 
@@ -140,30 +177,37 @@ fn get_output_json(dir: PathBuf, inspect_flake_ref: &str) -> Result<SchemaOutput
         )));
     }
 
-    let schema_output_json: SchemaOutput = serde_json::from_slice(&nix_eval_stdout)?;
-
-    Ok(schema_output_json)
+    Ok(serde_json::from_slice(&nix_eval_stdout)?)
 }
 
 fn nix_command(args: &[&str]) -> Result<Output, FlakeIterError> {
-    Ok(Command::new("nix").args(args).output()?)
+    let output = Command::new("nix").args(args).output()?;
+
+    if output.status.success() {
+        Ok(output)
+    } else {
+        Err(FlakeIterError::Misc(String::from_utf8(output.stdout)?))
+    }
 }
 
 fn nix_command_pipe(args: &[&str]) -> Result<(), FlakeIterError> {
-    let mut cmd = Command::new("nix")
+    let cmd = Command::new("nix")
         .args(args)
         .stdout(Stdio::piped())
         .spawn()?;
 
-    if let Some(stdout) = cmd.stdout.take() {
-        let reader = BufReader::new(stdout);
+    let output = cmd.wait_with_output()?;
+
+    if output.status.success() {
+        let reader = BufReader::new(&output.stdout[..]);
         for line in reader.lines() {
             match line {
                 Ok(log) => println!("{}", log),
                 Err(e) => eprintln!("Error reading line: {}", e),
             }
         }
+        Ok(())
+    } else {
+        Err(FlakeIterError::Misc(String::from_utf8(output.stdout)?))
     }
-
-    Ok(())
 }
