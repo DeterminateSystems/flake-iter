@@ -5,7 +5,7 @@ use tracing::{debug, info, warn};
 
 use crate::{
     cmd::{get_output_json, SchemaOutput},
-    FlakeIterError,
+    error::FlakeIterError,
 };
 
 const GITHUB_OUTPUT_KEY: &str = "systems";
@@ -16,11 +16,7 @@ const INSPECT_FLAKE_REF: &str =
 
 /// Write the systems/runners array to the file at `$GITHUB_OUTPUT`.
 #[derive(Parser)]
-pub struct Systems {
-    /// The directory of the target flake.
-    #[arg(short, long, env = "FLAKE_ITER_DIRECTORY", default_value = ".")]
-    directory: PathBuf,
-
+pub(crate) struct Systems {
     /// A mapping of GitHub Actions runners to Nix systems.
     /// Example: {"aarch64-darwin": "macos-latest-xlarge"}
     #[arg(short, long, env = "FLAKE_ITER_RUNNER_MAP")]
@@ -28,11 +24,11 @@ pub struct Systems {
 }
 
 impl Systems {
-    pub fn execute(&self) -> Result<(), FlakeIterError> {
+    pub(crate) fn execute(&self, directory: PathBuf) -> Result<(), FlakeIterError> {
         let runner_map: HashMap<String, String> = serde_json::from_str(&self.runner_map)?;
 
         info!("Generating systems matrix for GitHub Actions");
-        let outputs: SchemaOutput = get_output_json(self.directory.clone(), INSPECT_FLAKE_REF)?;
+        let outputs: SchemaOutput = get_output_json(directory.clone(), INSPECT_FLAKE_REF)?;
 
         let (systems, systems_without_runners) = outputs.systems(runner_map);
 
