@@ -181,24 +181,33 @@ fn get_output_json(dir: PathBuf, inspect_flake_ref: &str) -> Result<SchemaOutput
 }
 
 fn nix_command(args: &[&str]) -> Result<Output, FlakeIterError> {
-    Ok(Command::new("nix").args(args).output()?)
+    let output = Command::new("nix").args(args).output()?;
+
+    if output.status.success() {
+        Ok(output)
+    } else {
+        Err(FlakeIterError::Misc(String::from_utf8(output.stdout)?))
+    }
 }
 
 fn nix_command_pipe(args: &[&str]) -> Result<(), FlakeIterError> {
-    let mut cmd = Command::new("nix")
+    let cmd = Command::new("nix")
         .args(args)
         .stdout(Stdio::piped())
         .spawn()?;
 
-    if let Some(stdout) = cmd.stdout.take() {
-        let reader = BufReader::new(stdout);
+    let output = cmd.wait_with_output()?;
+
+    if output.status.success() {
+        let reader = BufReader::new(&output.stdout[..]);
         for line in reader.lines() {
             match line {
                 Ok(log) => println!("{}", log),
                 Err(e) => eprintln!("Error reading line: {}", e),
             }
         }
+        Ok(())
+    } else {
+        Err(FlakeIterError::Misc(String::from_utf8(output.stdout)?))
     }
-
-    Ok(())
 }
