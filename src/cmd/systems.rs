@@ -37,7 +37,7 @@ impl Systems {
         let (systems, systems_without_runners) = outputs.systems(runner_map);
 
         for system in systems_without_runners {
-            warn!("Flake contains derivation outputs for Nix system `{system}` but no runner is specified for that system")
+            warn!("Flake contains derivation outputs for Nix system `{system}` but no runner is specified for that system");
         }
 
         let matrix_str = serde_json::to_string(&systems)?;
