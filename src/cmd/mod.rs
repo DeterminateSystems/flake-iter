@@ -1,8 +1,9 @@
 mod build;
 mod systems;
 
-pub use build::Build;
-pub use systems::Systems;
+pub(crate) use build::Build;
+pub(crate) use systems::Systems;
+
 use tracing::debug;
 
 use std::{
@@ -15,7 +16,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::FlakeIterError;
+use crate::error::FlakeIterError;
 
 #[derive(Deserialize)]
 struct SchemaOutput {

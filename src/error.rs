@@ -1,5 +1,5 @@
 #[derive(Debug, thiserror::Error)]
-pub enum FlakeIterError {
+pub(super) enum FlakeIterError {
     #[error(transparent)]
     EnvVar(#[from] std::env::VarError),
 
