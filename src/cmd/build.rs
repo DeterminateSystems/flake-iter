@@ -1,6 +1,7 @@
 use std::{path::PathBuf, time::Duration};
 
 use clap::Parser;
+use color_eyre::eyre::Context;
 use indicatif::ProgressBar;
 use tracing::{debug, info};
 
@@ -65,10 +66,11 @@ impl Build {
                 let drv = format!("{}^*", drv.display());
                 if verbose {
                     debug!(drv, "Building derivation {n} of {num}");
-                    nix_command_pipe(&["build", "-L", &drv])?;
+                    nix_command_pipe(&["build", "-L", &drv])
+                        .wrap_err("failed to build derivation")?;
                 } else {
                     info!("Building derivation {n} of {num}");
-                    nix_command(&["build", &drv])?;
+                    nix_command(&["build", &drv]).wrap_err("failed to build derivation")?;
                 }
                 n += 1;
             }

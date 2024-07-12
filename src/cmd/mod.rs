@@ -2,6 +2,7 @@ mod build;
 mod systems;
 
 pub(crate) use build::Build;
+use color_eyre::eyre::Context;
 pub(crate) use systems::Systems;
 
 use tracing::debug;
@@ -141,13 +142,19 @@ fn accumulate_systems(
 }
 
 fn get_output_json(dir: PathBuf, inspect_flake_ref: &str) -> Result<SchemaOutput, FlakeIterError> {
+    // This acts as a quick pre-check. If this fails, then assembling the list of derivations
+    // is bound to fail.
+    nix_command(&["flake", "show"]).wrap_err("failed to show flake outputs")?;
+
     let metadata_json_output = nix_command(&[
         "flake",
         "metadata",
         "--json",
         "--no-write-lock-file",
         &dir.as_path().display().to_string(),
-    ])?;
+    ])
+    .wrap_err("failed to get flake metadata")?;
+
     let metadata_json: Value = serde_json::from_slice(&metadata_json_output.stdout)?;
 
     let flake_locked_url =
@@ -182,7 +189,10 @@ fn get_output_json(dir: PathBuf, inspect_flake_ref: &str) -> Result<SchemaOutput
 }
 
 fn nix_command(args: &[&str]) -> Result<Output, FlakeIterError> {
-    let output = Command::new("nix").args(args).output()?;
+    let output = Command::new("nix")
+        .args(args)
+        .output()
+        .wrap_err("nix command invocation failed")?;
 
     if output.status.success() {
         Ok(output)
@@ -195,7 +205,8 @@ fn nix_command_pipe(args: &[&str]) -> Result<(), FlakeIterError> {
     let cmd = Command::new("nix")
         .args(args)
         .stdout(Stdio::piped())
-        .spawn()?;
+        .spawn()
+        .wrap_err("nix command invocation failed")?;
 
     let output = cmd.wait_with_output()?;
 
