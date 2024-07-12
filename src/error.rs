@@ -13,5 +13,8 @@ pub(super) enum FlakeIterError {
     Misc(String),
 
     #[error(transparent)]
+    Report(#[from] color_eyre::eyre::Report),
+
+    #[error(transparent)]
     Utf8(#[from] std::string::FromUtf8Error),
 }
