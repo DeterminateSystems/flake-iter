@@ -141,6 +141,10 @@ fn accumulate_systems(
 }
 
 fn get_output_json(dir: PathBuf, inspect_flake_ref: &str) -> Result<SchemaOutput, FlakeIterError> {
+    // This acts as a quick pre-check. If this fails, then assembling the list of derivations
+    // is bound to fail.
+    nix_command(&["flake", "show"])?;
+
     let metadata_json_output = nix_command(&[
         "flake",
         "metadata",
