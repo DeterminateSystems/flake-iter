@@ -1,8 +1,7 @@
-use std::{path::PathBuf, time::Duration};
+use std::path::PathBuf;
 
 use clap::Parser;
 use color_eyre::eyre::Context;
-use indicatif::ProgressBar;
 use tracing::{debug, info};
 
 use crate::{
@@ -41,14 +40,8 @@ impl Build {
 
         debug!(flake = ?flake_path, "Searching for derivations in flake outputs");
 
-        let bar = ProgressBar::new_spinner();
-        bar.enable_steady_tick(Duration::from_millis(100));
-
-        bar.set_message("Assembling list of derivations to build");
         let outputs: SchemaOutput = get_output_json(directory.clone(), INSPECT_FLAKE_REF)?;
         let derivations = outputs.derivations(&current_system);
-
-        bar.finish_and_clear();
 
         let num = derivations.len();
 

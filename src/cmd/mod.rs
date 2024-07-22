@@ -9,7 +9,6 @@ use tracing::debug;
 
 use std::{
     collections::{HashMap, HashSet},
-    io::{BufRead, BufReader},
     path::PathBuf,
     process::{Command, Output, Stdio},
 };
@@ -146,14 +145,20 @@ fn get_output_json(dir: PathBuf, inspect_flake_ref: &str) -> Result<SchemaOutput
     // is bound to fail.
     nix_command(&["flake", "show"]).wrap_err("failed to show flake outputs")?;
 
+    let flake_path = dir.as_path().display().to_string();
+
+    debug!(flake = flake_path, "Fetching flake metadata");
+
     let metadata_json_output = nix_command(&[
         "flake",
         "metadata",
         "--json",
         "--no-write-lock-file",
-        &dir.as_path().display().to_string(),
+        &flake_path,
     ])
     .wrap_err("failed to get flake metadata")?;
+
+    debug!(flake = flake_path, "Fetched flake metadata");
 
     let metadata_json: Value = serde_json::from_slice(&metadata_json_output.stdout)?;
 
@@ -164,6 +169,8 @@ fn get_output_json(dir: PathBuf, inspect_flake_ref: &str) -> Result<SchemaOutput
             .ok_or(FlakeIterError::Misc(String::from(
                 "url field missing from flake metadata JSON",
             )))?;
+
+    debug!(url = flake_locked_url, "Flake locked URL");
 
     let nix_eval_output = nix_command_pipe(&[
         "eval",
@@ -204,8 +211,8 @@ fn nix_command(args: &[&str]) -> Result<Output, FlakeIterError> {
 fn nix_command_pipe(args: &[&str]) -> Result<Output, FlakeIterError> {
     let cmd = Command::new("nix")
         .args(args)
-        .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
+        .stdout(Stdio::piped())
         .spawn()
         .wrap_err("failed to spawn Nix command")?;
 
@@ -214,13 +221,6 @@ fn nix_command_pipe(args: &[&str]) -> Result<Output, FlakeIterError> {
         .wrap_err("failed to wait for Nix command output")?;
 
     if output.status.success() {
-        let reader = BufReader::new(&output.stdout[..]);
-        for line in reader.lines() {
-            match line {
-                Ok(log) => println!("{}", log),
-                Err(e) => eprintln!("Error reading line: {}", e),
-            }
-        }
         Ok(output)
     } else {
         Err(FlakeIterError::Misc(String::from_utf8(output.stdout)?))
