@@ -165,7 +165,7 @@ fn get_output_json(dir: PathBuf, inspect_flake_ref: &str) -> Result<SchemaOutput
                 "url field missing from flake metadata JSON",
             )))?;
 
-    let nix_eval_output = nix_command(&[
+    let nix_eval_output = nix_command_pipe(&[
         "eval",
         "--json",
         "--no-write-lock-file",
@@ -201,7 +201,7 @@ fn nix_command(args: &[&str]) -> Result<Output, FlakeIterError> {
     }
 }
 
-fn nix_command_pipe(args: &[&str]) -> Result<(), FlakeIterError> {
+fn nix_command_pipe(args: &[&str]) -> Result<Output, FlakeIterError> {
     let cmd = Command::new("nix")
         .args(args)
         .stdout(Stdio::inherit())
@@ -221,7 +221,7 @@ fn nix_command_pipe(args: &[&str]) -> Result<(), FlakeIterError> {
                 Err(e) => eprintln!("Error reading line: {}", e),
             }
         }
-        Ok(())
+        Ok(output)
     } else {
         Err(FlakeIterError::Misc(String::from_utf8(output.stdout)?))
     }
