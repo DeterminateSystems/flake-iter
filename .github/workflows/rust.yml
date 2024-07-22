@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 jobs:
-  rust-fmt-and-clippy:
+  rust:
     runs-on: UbuntuLatest32Cores128G
     steps:
       - uses: actions/checkout@v4
@@ -24,6 +24,10 @@ jobs:
         run: |
           nix develop --command cargo machete
 
-      - name: Build and cache everything
+      - name: Build and cache everything (verbose)
         run: |
           nix develop --command cargo run -- build --verbose
+
+      - name: Build and cache everything (not verbose)
+        run: |
+          nix develop --command cargo run -- build
