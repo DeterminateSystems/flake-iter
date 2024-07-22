@@ -204,11 +204,14 @@ fn nix_command(args: &[&str]) -> Result<Output, FlakeIterError> {
 fn nix_command_pipe(args: &[&str]) -> Result<(), FlakeIterError> {
     let cmd = Command::new("nix")
         .args(args)
-        .stdout(Stdio::piped())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
         .spawn()
-        .wrap_err("nix command invocation failed")?;
+        .wrap_err("failed to spawn Nix command")?;
 
-    let output = cmd.wait_with_output()?;
+    let output = cmd
+        .wait_with_output()
+        .wrap_err("failed to wait for Nix command output")?;
 
     if output.status.success() {
         let reader = BufReader::new(&output.stdout[..]);
