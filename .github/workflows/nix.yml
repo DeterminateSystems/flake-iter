@@ -22,7 +22,3 @@ jobs:
 
       - name: Nix Flake Check
         run: nix flake check --print-build-logs --all-systems
-
-      - name: Build and cache everything
-        run: |
-          nix develop --command cargo run -- build
