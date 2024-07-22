@@ -204,7 +204,7 @@ fn nix_command(args: &[&str]) -> Result<Output, FlakeIterError> {
     if output.status.success() {
         Ok(output)
     } else {
-        Err(FlakeIterError::Misc(String::from_utf8(output.stdout)?))
+        Err(FlakeIterError::Misc(output_to_string(output)))
     }
 }
 
@@ -221,7 +221,7 @@ fn nix_command_pipe_with_output(args: &[&str]) -> Result<Output, FlakeIterError>
     if output.status.success() {
         Ok(output)
     } else {
-        Err(FlakeIterError::Misc(String::from_utf8(output.stdout)?))
+        Err(FlakeIterError::Misc(output_to_string(output)))
     }
 }
 
@@ -238,6 +238,19 @@ fn nix_command_pipe_no_output(args: &[&str]) -> Result<(), FlakeIterError> {
     if output.status.success() {
         Ok(())
     } else {
-        Err(FlakeIterError::Misc(String::from_utf8(output.stdout)?))
+        Err(FlakeIterError::Misc(output_to_string(output)))
     }
+}
+
+fn output_to_string(output: Output) -> String {
+    let mut s = String::new();
+
+    if !output.stdout.is_empty() {
+        s.push_str(&String::from_utf8_lossy(&output.stdout));
+    }
+
+    if !output.stderr.is_empty() {
+        s.push_str(&String::from_utf8_lossy(&output.stderr));
+    }
+    s
 }
