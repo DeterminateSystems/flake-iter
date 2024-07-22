@@ -172,7 +172,7 @@ fn get_output_json(dir: PathBuf, inspect_flake_ref: &str) -> Result<SchemaOutput
 
     debug!(url = flake_locked_url, "Flake locked URL");
 
-    let nix_eval_output = nix_command_pipe(&[
+    let nix_eval_output = nix_command_pipe_with_output(&[
         "eval",
         "--json",
         "--no-write-lock-file",
@@ -208,20 +208,35 @@ fn nix_command(args: &[&str]) -> Result<Output, FlakeIterError> {
     }
 }
 
-fn nix_command_pipe(args: &[&str]) -> Result<Output, FlakeIterError> {
-    let cmd = Command::new("nix")
+fn nix_command_pipe_with_output(args: &[&str]) -> Result<Output, FlakeIterError> {
+    let output = Command::new("nix")
         .args(args)
         .stderr(Stdio::inherit())
         .stdout(Stdio::piped())
         .spawn()
-        .wrap_err("failed to spawn Nix command")?;
-
-    let output = cmd
+        .wrap_err("failed to spawn Nix command")?
         .wait_with_output()
         .wrap_err("failed to wait for Nix command output")?;
 
     if output.status.success() {
         Ok(output)
+    } else {
+        Err(FlakeIterError::Misc(String::from_utf8(output.stdout)?))
+    }
+}
+
+fn nix_command_pipe_no_output(args: &[&str]) -> Result<(), FlakeIterError> {
+    let output = Command::new("nix")
+        .args(args)
+        .stderr(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .spawn()
+        .wrap_err("failed to spawn Nix command")?
+        .wait_with_output()
+        .wrap_err("failed to wait for Nix command output")?;
+
+    if output.status.success() {
+        Ok(())
     } else {
         Err(FlakeIterError::Misc(String::from_utf8(output.stdout)?))
     }

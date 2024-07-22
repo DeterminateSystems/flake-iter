@@ -5,7 +5,7 @@ use color_eyre::eyre::Context;
 use tracing::{debug, info};
 
 use crate::{
-    cmd::{get_output_json, nix_command, nix_command_pipe, SchemaOutput},
+    cmd::{get_output_json, nix_command, nix_command_pipe_no_output, SchemaOutput},
     error::FlakeIterError,
 };
 
@@ -59,7 +59,7 @@ impl Build {
                 let drv = format!("{}^*", drv.display());
                 if verbose {
                     debug!(drv, "Building derivation {n} of {num}");
-                    nix_command_pipe(&["build", "-L", &drv])
+                    nix_command_pipe_no_output(&["build", "--print-build-logs", &drv])
                         .wrap_err("failed to build derivation")?;
                 } else {
                     info!("Building derivation {n} of {num}");
