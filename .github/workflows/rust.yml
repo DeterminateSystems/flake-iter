@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 jobs:
-  rust:
+  rust-fmt-and-clippy:
     runs-on: UbuntuLatest32Cores128G
     steps:
       - uses: actions/checkout@v4
