@@ -23,3 +23,11 @@ jobs:
       - name: Unused dependencies
         run: |
           nix develop --command cargo machete
+
+      - name: Build and cache everything (verbose)
+        run: |
+          nix develop --command cargo run -- build --verbose
+
+      - name: Build and cache everything (not verbose)
+        run: |
+          nix develop --command cargo run -- build

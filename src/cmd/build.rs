@@ -1,12 +1,11 @@
-use std::{path::PathBuf, time::Duration};
+use std::path::PathBuf;
 
 use clap::Parser;
 use color_eyre::eyre::Context;
-use indicatif::ProgressBar;
 use tracing::{debug, info};
 
 use crate::{
-    cmd::{get_output_json, nix_command, nix_command_pipe, SchemaOutput},
+    cmd::{get_output_json, nix_command, nix_command_pipe_no_output, SchemaOutput},
     error::FlakeIterError,
 };
 
@@ -41,14 +40,8 @@ impl Build {
 
         debug!(flake = ?flake_path, "Searching for derivations in flake outputs");
 
-        let bar = ProgressBar::new_spinner();
-        bar.enable_steady_tick(Duration::from_millis(100));
-
-        bar.set_message("Assembling list of derivations to build");
         let outputs: SchemaOutput = get_output_json(directory.clone(), INSPECT_FLAKE_REF)?;
         let derivations = outputs.derivations(&current_system);
-
-        bar.finish_and_clear();
 
         let num = derivations.len();
 
@@ -66,7 +59,7 @@ impl Build {
                 let drv = format!("{}^*", drv.display());
                 if verbose {
                     debug!(drv, "Building derivation {n} of {num}");
-                    nix_command_pipe(&["build", "-L", &drv])
+                    nix_command_pipe_no_output(&["build", "--print-build-logs", &drv])
                         .wrap_err("failed to build derivation")?;
                 } else {
                     info!("Building derivation {n} of {num}");
