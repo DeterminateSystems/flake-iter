@@ -2,8 +2,6 @@
 name = "flake-iter"
 version = "0.1.0"
 edition = "2021"
-# This is a private repo and we'll error links to go to this public repo
-repository = "https://github.com/DeterminateSystems/ci"
 
 [dependencies]
 clap = { version = "4.5.7", default-features = false, features = [
