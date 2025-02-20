@@ -32,6 +32,10 @@ impl Systems {
 
         let (systems, systems_without_runners) = outputs.systems(runner_map);
 
+        if systems.is_empty() {
+            warn!("Flake does not include a nix system.");
+        }
+
         for system in systems_without_runners {
             warn!("Flake contains derivation outputs for Nix system `{system}` but no runner is specified for that system");
         }
