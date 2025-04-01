@@ -55,8 +55,8 @@ impl Build {
             info!("Building all unique derivations");
 
             let mut n = 1;
-            for drv in derivations {
-                let drv = format!("{}^*", drv.display());
+            for (drv, outputs) in derivations {
+                let drv = format!("{}^{}", drv.display(), outputs.join(","));
                 if verbose {
                     debug!(drv, "Building derivation {n} of {num}");
                     nix_command_pipe_no_output(&["build", "--print-build-logs", &drv])
