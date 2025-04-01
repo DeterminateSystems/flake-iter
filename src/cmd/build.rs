@@ -56,7 +56,7 @@ impl Build {
 
             let mut n = 1;
             for drv in derivations {
-                let drv = format!("{}", drv.display());
+                let drv = format!("{}^out", drv.display());
                 if verbose {
                     debug!(drv, "Building derivation {n} of {num}");
                     nix_command_pipe_no_output(&["build", "--print-build-logs", &drv])
