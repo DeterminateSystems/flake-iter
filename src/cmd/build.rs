@@ -59,11 +59,17 @@ impl Build {
                 let drv = format!("{}^{}", drv.display(), outputs.join(","));
                 if verbose {
                     debug!(drv, "Building derivation {n} of {num}");
-                    nix_command_pipe_no_output(&["build", "--print-build-logs", &drv])
-                        .wrap_err("failed to build derivation")?;
+                    nix_command_pipe_no_output(&[
+                        "build",
+                        "--print-out-paths",
+                        "--print-build-logs",
+                        &drv,
+                    ])
+                    .wrap_err("failed to build derivation")?;
                 } else {
                     info!("Building derivation {n} of {num}");
-                    nix_command(&["build", &drv]).wrap_err("failed to build derivation")?;
+                    nix_command(&["build", "--print-out-paths", &drv])
+                        .wrap_err("failed to build derivation")?;
                 }
                 n += 1;
             }
