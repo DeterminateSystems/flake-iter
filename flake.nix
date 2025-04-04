@@ -5,7 +5,7 @@
   inputs = {
     nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0";
     fenix = { url = "https://flakehub.com/f/nix-community/fenix/0.1.1885"; inputs.nixpkgs.follows = "nixpkgs"; };
-    crane = { url = "https://flakehub.com/f/ipetkov/crane/0.17.3"; inputs.nixpkgs.follows = "nixpkgs"; };
+    crane = { url = "https://flakehub.com/f/ipetkov/crane/0.20"; inputs.nixpkgs.follows = "nixpkgs"; };
     flake-compat.url = "https://flakehub.com/f/edolstra/flake-compat/*";
     flake-schemas.url = "https://flakehub.com/f/DeterminateSystems/flake-schemas/*";
   };
