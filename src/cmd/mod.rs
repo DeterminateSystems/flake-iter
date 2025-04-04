@@ -41,6 +41,8 @@ pub(super) struct Buildable {
     derivation: Option<PathBuf>,
     #[serde(rename = "forSystems")]
     for_systems: Option<Vec<String>>,
+    #[serde(default)]
+    outputs: HashMap<String, PathBuf>,
 }
 
 #[derive(Eq, Hash, PartialEq, Serialize)]
@@ -51,12 +53,12 @@ struct SystemAndRunner {
 }
 
 impl SchemaOutput {
-    fn derivations(&self, current_system: &str) -> Vec<PathBuf> {
-        let mut derivations: HashSet<PathBuf> = HashSet::new();
+    fn derivations(&self, current_system: &str) -> HashMap<PathBuf, Vec<String>> {
+        let mut derivations: HashMap<PathBuf, Vec<String>> = HashMap::new();
         for item in self.inventory.values() {
             accumulate_derivations(&mut derivations, item, current_system);
         }
-        Vec::from_iter(derivations)
+        derivations
     }
 
     fn systems(&self, runner_map: HashMap<String, String>) -> (Vec<SystemAndRunner>, Vec<String>) {
@@ -80,7 +82,7 @@ impl SchemaOutput {
 }
 
 fn accumulate_derivations(
-    derivations: &mut HashSet<PathBuf>,
+    derivations: &mut HashMap<PathBuf, Vec<String>>,
     item: &InventoryItem,
     current_system: &str,
 ) {
@@ -88,12 +90,16 @@ fn accumulate_derivations(
         InventoryItem::Buildable(Buildable {
             derivation,
             for_systems,
+            outputs,
         }) => {
             if let Some(for_systems) = for_systems {
                 for system in for_systems {
                     if system == current_system {
                         if let Some(derivation) = derivation {
-                            if derivations.insert(derivation.to_path_buf()) {
+                            if derivations
+                                .insert(derivation.to_path_buf(), outputs.keys().cloned().collect())
+                                .is_some()
+                            {
                                 debug!(drv = ?derivation, "Adding non-repeated derivation");
                             } else {
                                 debug!(drv = ?derivation, "Skipping repeat derivation");

@@ -46,6 +46,7 @@
           packages = with pkgs; [
             rustToolchain
             cargo-edit
+            cargo-watch
             bacon
             rust-analyzer
             nixpkgs-fmt
