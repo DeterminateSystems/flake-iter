@@ -14,12 +14,13 @@ concurrency:
 
 jobs:
   DeterminateCI:
-    uses: DeterminateSystems/ci/.github/workflows/workflow.yml@main
+    uses: DeterminateSystems/ci/.github/workflows/workflow.yml@flake-iter-input
     permissions:
       id-token: "write"
       contents: "read"
     with:
       visibility: public
+      flake-iter-flakeref: ".#"
       runner-map: |
           {
             "aarch64-darwin": "macos-latest",
