@@ -6,39 +6,38 @@
     nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0";
     fenix = { url = "https://flakehub.com/f/nix-community/fenix/0.1.1885"; inputs.nixpkgs.follows = "nixpkgs"; };
     crane = { url = "https://flakehub.com/f/ipetkov/crane/0.20"; };
-    flake-compat.url = "https://flakehub.com/f/edolstra/flake-compat/*";
     flake-schemas.url = "https://flakehub.com/f/DeterminateSystems/flake-schemas/*";
   };
 
-  outputs = { self, nixpkgs, fenix, crane, flake-compat, flake-schemas }:
+  outputs = inputs:
     let
       supportedSystems = [ "x86_64-linux" "aarch64-darwin" "x86_64-darwin" "aarch64-linux" ];
-      forEachSupportedSystem = f: nixpkgs.lib.genAttrs supportedSystems (system: f {
-        pkgs = import nixpkgs {
+      forEachSupportedSystem = f: inputs.nixpkgs.lib.genAttrs supportedSystems (system: f {
+        pkgs = import inputs.nixpkgs {
           inherit system;
-          overlays = [ self.overlays.default ];
+          overlays = [ inputs.self.overlays.default ];
         };
       });
       meta = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).package;
     in
     {
-      inherit (flake-schemas) schemas;
+      inherit (inputs.flake-schemas) schemas;
 
       overlays.default = final: prev: rec {
         system = final.stdenv.hostPlatform.system;
-        rustToolchain = with fenix.packages.${system};
+        rustToolchain = with inputs.fenix.packages.${system};
           combine ([
             stable.clippy
             stable.rustc
             stable.cargo
             stable.rustfmt
             stable.rust-src
-          ] ++ nixpkgs.lib.optionals (system == "x86_64-linux") [
+          ] ++ inputs.nixpkgs.lib.optionals (system == "x86_64-linux") [
             targets.x86_64-unknown-linux-musl.stable.rust-std
-          ] ++ nixpkgs.lib.optionals (system == "aarch64-linux") [
+          ] ++ inputs.nixpkgs.lib.optionals (system == "aarch64-linux") [
             targets.aarch64-unknown-linux-musl.stable.rust-std
           ]);
-        craneLib = (crane.mkLib final).overrideToolchain rustToolchain;
+        craneLib = (inputs.crane.mkLib final).overrideToolchain rustToolchain;
       };
 
       devShells = forEachSupportedSystem ({ pkgs }: rec {
@@ -70,7 +69,7 @@
         default = pkgs.craneLib.buildPackage {
           pname = meta.name;
           inherit (meta) version;
-          src = self;
+          src = inputs.self;
           doCheck = true;
           buildInputs = with pkgs; [ iconv ];
         };
