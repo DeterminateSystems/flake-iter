@@ -53,8 +53,8 @@ struct SystemAndRunner {
 }
 
 impl SchemaOutput {
-    fn derivations(&self, current_system: &str) -> HashMap<PathBuf, Vec<String>> {
-        let mut derivations: HashMap<PathBuf, Vec<String>> = HashMap::new();
+    fn derivations(&self, current_system: &str) -> HashMap<PathBuf, (Vec<String>, Vec<PathBuf>)> {
+        let mut derivations: HashMap<PathBuf, (Vec<String>, Vec<PathBuf>)> = HashMap::new();
         for item in self.inventory.values() {
             accumulate_derivations(&mut derivations, item, current_system);
         }
@@ -82,7 +82,7 @@ impl SchemaOutput {
 }
 
 fn accumulate_derivations(
-    derivations: &mut HashMap<PathBuf, Vec<String>>,
+    derivations: &mut HashMap<PathBuf, (Vec<String>, Vec<PathBuf>)>,
     item: &InventoryItem,
     current_system: &str,
 ) {
@@ -97,7 +97,13 @@ fn accumulate_derivations(
                     if system == current_system {
                         if let Some(derivation) = derivation {
                             if derivations
-                                .insert(derivation.to_path_buf(), outputs.keys().cloned().collect())
+                                .insert(
+                                    derivation.to_path_buf(),
+                                    (
+                                        outputs.keys().cloned().collect(),
+                                        outputs.values().cloned().collect(),
+                                    ),
+                                )
                                 .is_some()
                             {
                                 debug!(drv = ?derivation, "Adding non-repeated derivation");

@@ -54,9 +54,38 @@ impl Build {
 
             info!("Building all unique derivations");
 
+            let logged_in_to_flakehub = nix_command_pipe_no_output(&[
+                "store",
+                "info",
+                "--store",
+                "https://cache.flakehub.com",
+            ])
+            .is_ok();
+
             let mut n = 1;
-            for (drv, outputs) in derivations {
+            for (drv, (outputs, output_paths)) in derivations {
                 let drv = format!("{}^{}", drv.display(), outputs.join(","));
+
+                // Check to see if the outputs are already in the cache
+                if logged_in_to_flakehub {
+                    let args: Vec<String> = ["path-info", "--store", "https://cache.flakehub.com"]
+                        .into_iter()
+                        .map(String::from)
+                        .chain(
+                            output_paths
+                                .iter()
+                                .filter_map(|p| p.to_str())
+                                .map(|v| v.to_string()),
+                        )
+                        .collect();
+
+                    let args_: Vec<&str> = args.iter().map(String::as_str).collect();
+                    if nix_command_pipe_no_output(&args_).is_ok() {
+                        info!("Skipping {drv}: its outputs are already in FlakeHub Cache.");
+                        continue;
+                    }
+                }
+
                 if verbose {
                     debug!(drv, "Building derivation {n} of {num}");
                     nix_command_pipe_no_output(&[
