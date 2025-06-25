@@ -79,8 +79,8 @@ impl Build {
                         )
                         .collect();
 
-                    let args_: Vec<&str> = args.iter().map(String::as_str).collect();
-                    if nix_command_pipe_no_output(&args_).is_ok() {
+                    let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+                    if nix_command_pipe_no_output(&arg_strs).is_ok() {
                         info!("Skipping {drv}: its outputs are already in FlakeHub Cache.");
                         continue;
                     }
