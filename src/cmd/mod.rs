@@ -220,6 +220,23 @@ fn nix_command(args: &[&str]) -> Result<Output, FlakeIterError> {
     }
 }
 
+fn nix_command_silence_output(args: &[&str]) -> Result<(), FlakeIterError> {
+    let output = Command::new("nix")
+        .args(args)
+        .stderr(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .wrap_err("failed to spawn Nix command")?
+        .wait_with_output()
+        .wrap_err("failed to wait for Nix command output")?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(FlakeIterError::Misc(output_to_string(output)))
+    }
+}
+
 fn nix_command_pipe_with_output(args: &[&str]) -> Result<Output, FlakeIterError> {
     let output = Command::new("nix")
         .args(args)
