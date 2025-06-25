@@ -220,7 +220,7 @@ fn nix_command(args: &[&str]) -> Result<Output, FlakeIterError> {
     }
 }
 
-fn nix_command_silence_output(args: &[&str]) -> Result<(), FlakeIterError> {
+fn nix_command_all_output_piped(args: &[&str]) -> Result<(), FlakeIterError> {
     let output = Command::new("nix")
         .args(args)
         .stderr(Stdio::piped())

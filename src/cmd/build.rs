@@ -6,7 +6,7 @@ use tracing::{debug, info};
 
 use crate::{
     cmd::{
-        get_output_json, nix_command, nix_command_pipe_no_output, nix_command_silence_output,
+        get_output_json, nix_command, nix_command_all_output_piped, nix_command_pipe_no_output,
         SchemaOutput,
     },
     error::FlakeIterError,
@@ -82,7 +82,7 @@ impl Build {
                         .collect();
 
                     let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-                    if nix_command_silence_output(&arg_strs).is_ok() {
+                    if nix_command_all_output_piped(&arg_strs).is_ok() {
                         info!("Skipping {drv}: its outputs are already in FlakeHub Cache.");
                         continue;
                     }
