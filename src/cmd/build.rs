@@ -65,8 +65,7 @@ impl Build {
             ])
             .is_ok();
 
-            let mut n = 1;
-            for (drv, (outputs, output_paths)) in derivations {
+            for (n, (drv, (outputs, output_paths))) in derivations.into_iter().enumerate() {
                 let drv = format!("{}^{}", drv.display(), outputs.join(","));
 
                 // Check to see if the outputs are already in the cache
@@ -85,13 +84,12 @@ impl Build {
                     let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
                     if nix_command_silence_output(&arg_strs).is_ok() {
                         info!("Skipping {drv}: its outputs are already in FlakeHub Cache.");
-                        n += 1;
                         continue;
                     }
                 }
 
                 if verbose {
-                    debug!(drv, "Building derivation {n} of {num}");
+                    debug!(drv, "Building derivation {} of {num}", n + 1);
                     nix_command_pipe_no_output(&[
                         "build",
                         "--print-out-paths",
@@ -100,11 +98,10 @@ impl Build {
                     ])
                     .wrap_err("failed to build derivation")?;
                 } else {
-                    info!("Building derivation {n} of {num}");
+                    info!("Building derivation {} of {num}", n + 1);
                     nix_command(&["build", "--print-out-paths", &drv])
                         .wrap_err("failed to build derivation")?;
                 }
-                n += 1;
             }
 
             info!("Successfully built all derivations");
