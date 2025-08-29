@@ -26,7 +26,7 @@ serde_json = { version = "1.0.115", default-features = false, features = [
 ] }
 thiserror = { version = "1.0.61", default-features = false }
 tracing = { version = "0.1.40", default-features = false, features = ["log"] }
-tracing-subscriber = { version = "0.3.18", default-features = false, features = [
+tracing-subscriber = { version = "0.3.20", default-features = false, features = [
   "ansi",
   "env-filter",
 ] }
