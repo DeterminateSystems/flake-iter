@@ -53,11 +53,9 @@ The `systems` command maps Nix systems to runners.
 Here's the default mapping:
 
 ```json
-
 {
-  "x86_64-linux": "ubuntu-latest",
-  "x86_64-darwin": "macos-latest",
-  "aarch64-darwin": "macos-latest"
+  "aarch64-darwin": "macos-latest",
+  "x86_64-linux": "ubuntu-latest"
 }
 ```
 
@@ -65,5 +63,5 @@ You can provide your own custom mapping using the `--runner-map` option:
 
 ```shell
 flake-iter systems \
-  --runner-map '{"x86_64-linux":"chonky-linux-box","x86_64-darwin":"chonky-macos-box"}'
+  --runner-map '{"x86_64-linux":"chonky-linux-box","aarch64-darwin":"chonky-macos-box"}'
 ```
