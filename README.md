@@ -55,7 +55,6 @@ Here's the default mapping:
 ```json
 {
   "aarch64-darwin": "macos-latest",
-  "aarch64-linux": "ubuntu-24.04-arm",
   "x86_64-linux": "ubuntu-latest"
 }
 ```
