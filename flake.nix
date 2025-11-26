@@ -3,7 +3,7 @@
   description = "flake-iter";
 
   inputs = {
-    nixpkgs.url = "https://flakehub.com/f/DeterminateSystems/secure/0";
+    nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0";
     fenix = {
       url = "https://flakehub.com/f/nix-community/fenix/0.1.1885";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -15,7 +15,7 @@
   };
 
   outputs =
-    { self, ... }@inputs:
+    inputs:
     let
       supportedSystems = [
         "x86_64-linux"
@@ -29,7 +29,7 @@
           f {
             pkgs = import inputs.nixpkgs {
               inherit system;
-              overlays = [ self.overlays.default ];
+              overlays = [ inputs.self.overlays.default ];
             };
           }
         );
@@ -94,7 +94,7 @@
           default = pkgs.craneLib.buildPackage {
             pname = meta.name;
             inherit (meta) version;
-            src = self;
+            src = inputs.self;
             doCheck = true;
             buildInputs = with pkgs; [ iconv ];
           };
