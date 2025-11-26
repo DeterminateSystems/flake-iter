@@ -53,9 +53,10 @@ The `systems` command maps Nix systems to runners.
 Here's the default mapping:
 
 ```json
+
 {
-  "aarch64-darwin": "macos-latest",
-  "x86_64-linux": "ubuntu-latest"
+  "x86_64-linux": "ubuntu-latest",
+  "aarch64-darwin": "macos-latest"
 }
 ```
 
