@@ -1,0 +1,54 @@
+name: Release tag
+
+on:
+  push:
+    tags:
+      - v*.*.*
+
+jobs:
+  build:
+    uses: ./.github/workflows/build-and-upload.yml
+
+  release:
+    needs: build
+    environment: release
+    concurrency: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # In order to upload artifacts to GitHub releases
+      id-token: write # In order to request a JWT for AWS auth
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create the artifacts directory
+        run: rm -rf ./artifacts && mkdir ./artifacts
+
+      # aarch64-darwin
+      - uses: ./.github/actions/download-persist
+        with:
+          name: flake-iter
+          arch: ARM64
+          os: macOS
+
+      # x86_64-linux
+      - uses: ./.github/actions/download-persist
+        with:
+          name: flake-iter
+          arch: X64
+          os: Linux
+
+      # aarch64-linux
+      - uses: ./.github/actions/download-persist
+        with:
+          name: flake-iter
+          arch: ARM64
+          os: Linux
+
+      - uses: DeterminateSystems/push-artifact-ids@main
+        with:
+          s3_upload_role: ${{ secrets.AWS_S3_UPLOAD_ROLE }}
+          bucket: ${{ secrets.AWS_S3_UPLOAD_BUCKET }}
+          directory: ./artifacts
+          ids_project_name: flake-iter
+          ids_binary_prefix: flake-iter

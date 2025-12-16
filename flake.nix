@@ -11,11 +11,11 @@
     crane = {
       url = "https://flakehub.com/f/ipetkov/crane/0.20";
     };
-    flake-schemas.url = "https://flakehub.com/f/DeterminateSystems/flake-schemas/*";
+    flake-schemas.url = "https://flakehub.com/f/DeterminateSystems/flake-schemas/0.1";
   };
 
   outputs =
-    inputs:
+    { self, ... }@inputs:
     let
       supportedSystems = [
         "x86_64-linux"
@@ -29,7 +29,7 @@
           f {
             pkgs = import inputs.nixpkgs {
               inherit system;
-              overlays = [ inputs.self.overlays.default ];
+              overlays = [ self.overlays.default ];
             };
           }
         );
@@ -94,7 +94,7 @@
           default = pkgs.craneLib.buildPackage {
             pname = meta.name;
             inherit (meta) version;
-            src = inputs.self;
+            src = self;
             doCheck = true;
             buildInputs = with pkgs; [ iconv ];
           };
