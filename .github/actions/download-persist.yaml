@@ -2,19 +2,13 @@ name: Download and persist artifact
 
 inputs:
   name:
-    type: string
+    description: Artifact name prefix
     required: true
   arch:
-    type: choice
-    options:
-      - X64
-      - ARM64
+    description: Architecture (X64 or ARM64)
     required: true
   os:
-    type: choice
-    options:
-      - Linux
-      - macOS
+    description: Operating system (Linux or macOS)
     required: true
 
 runs:
