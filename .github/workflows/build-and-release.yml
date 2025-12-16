@@ -45,7 +45,7 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: artifact-${{ matrix.systems.nix-system }}
+          name: flake-iter-${{ matrix.systems.nix-system }}
           path: artifacts/${{ matrix.systems.artifact }}
           if-no-files-found: error
           overwrite: true
@@ -61,8 +61,9 @@ jobs:
       - name: Download artifacts directory
         uses: actions/download-artifact@v7
         with:
-          name: artifacts
+          pattern: flake-iter-*
           path: ./artifacts
+          merge-multiple: true
 
       - name: Upload to S3
         uses: DeterminateSystems/push-artifact-ids@main
