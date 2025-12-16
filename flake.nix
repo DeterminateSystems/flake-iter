@@ -17,16 +17,20 @@
   outputs =
     { self, ... }@inputs:
     let
+      inherit (inputs.nixpkgs) lib;
+
       supportedSystems = [
         "x86_64-linux"
         "aarch64-darwin"
         "aarch64-linux"
       ];
+
       forEachSupportedSystem =
         f:
-        inputs.nixpkgs.lib.genAttrs supportedSystems (
+        lib.genAttrs supportedSystems (
           system:
           f {
+            inherit system;
             pkgs = import inputs.nixpkgs {
               inherit system;
               overlays = [ self.overlays.default ];
@@ -50,10 +54,10 @@
               stable.rustfmt
               stable.rust-src
             ]
-            ++ inputs.nixpkgs.lib.optionals (system == "x86_64-linux") [
+            ++ lib.optionals (system == "x86_64-linux") [
               targets.x86_64-unknown-linux-musl.stable.rust-std
             ]
-            ++ inputs.nixpkgs.lib.optionals (system == "aarch64-linux") [
+            ++ lib.optionals (system == "aarch64-linux") [
               targets.aarch64-unknown-linux-musl.stable.rust-std
             ]
           );
@@ -61,7 +65,7 @@
       };
 
       devShells = forEachSupportedSystem (
-        { pkgs }:
+        { pkgs, system }:
         rec {
           default = pkgs.mkShell {
             packages = with pkgs; [
@@ -70,9 +74,9 @@
               cargo-watch
               bacon
               rust-analyzer
-              nixpkgs-fmt
               cargo-machete
               iconv
+              self.formatter.${system}
             ];
 
             env = {
@@ -87,9 +91,11 @@
         }
       );
 
+      formatter = forEachSupportedSystem ({ pkgs, ... }: pkgs.nixfmt);
+
       # These outputs are solely for local testing
       packages = forEachSupportedSystem (
-        { pkgs }:
+        { pkgs, ... }:
         rec {
           default = pkgs.craneLib.buildPackage {
             pname = meta.name;

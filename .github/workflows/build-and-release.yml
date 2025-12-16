@@ -35,12 +35,38 @@ jobs:
 
       - name: Build package for ${{ matrix.systems.nix-system }}
         run: |
-          nix build -L ".#packages.${{ matrix.systems.nix-system }}.default"
+          nix build -L
 
-      - name: Upload a Build Artifact
+      - name: Prepare ${{ matrix.systems.nix-system }} artifact
+        run: |
+          mkdir -p artifacts
+          cp result/bin/flake-iter artifacts/${{ matrix.systems.artifact }}
+
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          # Artifact name
-          name: ${{ matrix.systems.artifact }}
-          path: result/bin/flake-iter
+          name: artifacts
+          path: artifacts/${{ matrix.systems.artifact }}
           retention-days: 1
+
+  upload-artifacts-to-s3:
+    needs: build-artifacts
+    runs-on: ubuntu-24.04
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Download artifacts directory
+        uses: actions/download-artifact@v7
+        with:
+          name: artifacts
+          path: ./artifacts
+
+      - name: Upload to S3
+        uses: DeterminateSystems/push-artifact-ids@main
+        with:
+          s3_upload_role: ${{ secrets.AWS_S3_UPLOAD_ROLE }}
+          bucket: ${{ secrets.AWS_S3_UPLOAD_BUCKET }}
+          directory: ./artifacts
+          ids_project_name: flake-iter
+          ids_binary_prefix: flake-iter
