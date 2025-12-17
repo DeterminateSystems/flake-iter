@@ -16,13 +16,13 @@ jobs:
         systems:
           - nix-system: aarch64-darwin
             runner: macos-latest-xlarge
-            artifact: flake-iter-ARM64-macOS
+            artifact: ARM64-macOS
           - nix-system: aarch64-linux
             runner: namespace-profile-default-arm64
-            artifact: flake-iter-ARM64-Linux
+            artifact: ARM64-Linux
           - nix-system: x86_64-linux
             runner: ubuntu-24.04
-            artifact: flake-iter-X64-Linux
+            artifact: X64-Linux
     steps:
       - name: git checkout
         uses: actions/checkout@v6
@@ -62,7 +62,6 @@ jobs:
       - name: Download artifacts directory
         uses: actions/download-artifact@v7
         with:
-          pattern: flake-iter-*
           path: ./artifacts
           merge-multiple: true
 
