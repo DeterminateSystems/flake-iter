@@ -54,7 +54,7 @@ jobs:
   upload-artifacts-to-s3:
     needs: build-artifacts
     # Upload only on PR merge
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: release
     runs-on: ubuntu-24.04
     permissions:
       id-token: write
