@@ -69,8 +69,8 @@ jobs:
       - name: Upload to S3
         uses: DeterminateSystems/push-artifact-ids@main
         with:
-          s3_upload_role: ${{ secrets.AWS_S3_UPLOAD_ROLE }}
-          bucket: ${{ secrets.AWS_S3_UPLOAD_BUCKET }}
+          s3_upload_role: ${{ secrets.AWS_S3_UPLOAD_ROLE_ARN }}
+          bucket: ${{ secrets.AWS_S3_UPLOAD_BUCKET_NAME }}
           directory: ./artifacts
           ids_project_name: flake-iter
           ids_binary_prefix: flake-iter
