@@ -14,6 +14,7 @@ enum FlakeIterCommand {
 
 /// A tool for working with flake outputs.
 #[derive(Parser)]
+#[command(version)]
 pub struct Cli {
     /// Whether to display all Nix build output.
     #[arg(
