@@ -22,6 +22,14 @@ pub(crate) struct Build {
     /// The specific Nix system to build for (otherwise infer the current system from arch/OS information).
     #[arg(short, long, env = "FLAKE_ITER_NIX_SYSTEM")]
     system: Option<String>,
+
+    /// Number of concurrent Nix builds
+    #[arg(short = 'j', long, env = "FLAKE_ITER_BUILD_JOBS")]
+    build_jobs: Option<usize>,
+
+    /// Number of cores to utilize per job
+    #[arg(short = 'c', long, env = "FLAKE_ITER_BUILD_CORES")]
+    build_cores: Option<usize>,
 }
 
 impl Build {
@@ -88,19 +96,34 @@ impl Build {
                     }
                 }
 
+                let mut args: Vec<String> =
+                    vec![String::from("build"), String::from("--print-out-paths")];
+
+                if let Some(cores) = &self.build_cores {
+                    let cores = cores.to_string();
+                    args.push(String::from("--cores"));
+                    args.push(cores);
+                }
+
+                if let Some(max_jobs) = &self.build_jobs {
+                    let max_jobs = max_jobs.to_string();
+                    args.push(String::from("--max-jobs"));
+                    args.push(max_jobs);
+                }
+
                 if verbose {
-                    debug!(drv, "Building derivation {} of {num}", n + 1);
-                    nix_command_pipe_no_output(&[
-                        "build",
-                        "--print-out-paths",
-                        "--print-build-logs",
-                        &drv,
-                    ])
-                    .wrap_err("failed to build derivation")?;
+                    args.push(String::from("--print-build-logs"));
+                }
+
+                args.push(drv);
+
+                let args: Vec<&str> = args.iter().map(String::as_str).collect();
+
+                info!("Building derivation {} of {num}", n + 1);
+                if verbose {
+                    nix_command_pipe_no_output(&args).wrap_err("failed to build derivation")?;
                 } else {
-                    info!("Building derivation {} of {num}", n + 1);
-                    nix_command(&["build", "--print-out-paths", &drv])
-                        .wrap_err("failed to build derivation")?;
+                    nix_command(&args).wrap_err("failed to build derivation")?;
                 }
             }
 
