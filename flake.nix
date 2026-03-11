@@ -11,7 +11,7 @@
     crane = {
       url = "https://flakehub.com/f/ipetkov/crane/0.20";
     };
-    flake-schemas.url = "https://flakehub.com/f/DeterminateSystems/flake-schemas/0.1";
+    flake-schemas.url = "https://flakehub.com/f/DeterminateSystems/flake-schemas/0.3";
   };
 
   outputs =
